@@ -55,7 +55,7 @@ dist <- ggplot(data, aes(x = value)) +
 # Time series data 
 time_series <- ggplot(data, aes(x=index, y=value)) +
   geom_line() +
-  ylab("Unemployment") +
+  ylab("CO2 Concentration") +
   xlab("Year-Month") +
   ggtitle("CO2 Concentration 1959 - 1997")
 
@@ -81,30 +81,28 @@ annual_growth <- data %>%
   mutate(co2_diff = value - lag(value),
          monthly_growth_rate = co2_diff / value * 100,
          annualized_growth_rate = (1 + monthly_growth_rate)^12 - 1) %>% 
-  index_by(year_index = year(index)) %>% 
-  summarise(avg_annualized_growth_rate = mean(annualized_growth_rate)) %>% 
   na.omit()
  
 # Distribution 
-dist <- ggplot(annual_growth, aes(x = avg_annualized_growth_rate)) +
+dist <- ggplot(annual_growth, aes(x = annualized_growth_rate)) +
   geom_histogram() + 
   ylab("Value") + 
   xlab("Frequency") + 
   ggtitle("Average CO2 Growth Rate Distribution")
 
 # Time series data 
-time_series <- ggplot(annual_growth, aes(x=year_index, y=avg_annualized_growth_rate)) +
+time_series <- ggplot(annual_growth, aes(x=index, y=annualized_growth_rate)) +
   geom_line() +
-  ylab("Unemployment") +
+  ylab("Annualized Growth Rate") +
   xlab("Year-Month") +
   ggtitle("Average CO2 Growth Rate 1959 - 1997")
 
 # ACF 
-acf <- ggAcf(annual_growth$avg_annualized_growth_rate) +
+acf <- ggAcf(annual_growth$annualized_growth_rate) +
   ggtitle("ACF")
 
 # PACF
-pacf <- ggPacf(annual_growth$avg_annualized_growth_rate) +
+pacf <- ggPacf(annual_growth$annualized_growth_rate) +
   ggtitle("Partial ACF")
 
 (dist | time_series) / (acf | pacf) 
@@ -118,5 +116,10 @@ pacf <- ggPacf(annual_growth$avg_annualized_growth_rate) +
 
 De-trending? Seasonal adjustment? Differencing? 
 
+KSPSS test 
 
 
+To-do:
+
+- Write up first sections 
+- Task 2a 
