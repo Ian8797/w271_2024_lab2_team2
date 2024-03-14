@@ -1,0 +1,132 @@
+---
+title: "Report from the Point of View of the Present"
+output: pdf_document
+date: "2024-03-11"
+---
+
+```{r}
+library(readr)
+library(dplyr)
+library(lubridate)
+library(tsibble)
+library(ggplot2)
+```
+#(1 point) Task 0b: Introduction
+
+In this introduction, you can assume that your reader will have just read your 1997 report. In this introduction,
+very briefly pose the question that you are evaluating, and describe what (if anything) has changed in
+the data generating process between 1997 and the present.
+
+
+#(3 points) Task 1b: Create a modern data pipeline for Mona Loa CO2 data.
+
+The most current data is provided by the United States’ National Oceanic and Atmospheric Administration,
+on a data page [here]. Gather the most recent weekly data from this page. (A group that is interested in
+even more data management might choose to work with the hourly data.)
+Create a data pipeline that starts by reading from the appropriate URL, and ends by saving an object called
+co2_present that is a suitable time series object.
+Conduct the same EDA on this data. Describe how the Keeling Curve evolved from 1997 to the present,
+noting where the series seems to be following similar trends to the series that you “evaluated in 1997” and
+where the series seems to be following different trends. This EDA can use the same, or very similar tools
+and views as you provided in your 1997 report.
+
+```{r}
+weekly_co2_url <- "https://gml.noaa.gov/webdata/ccgg/trends/co2/co2_weekly_mlo.csv"
+
+content <- read_lines(weekly_co2_url, skip_empty_rows = TRUE)
+
+header_end_index <- max(grep("^#", content))
+
+co2_present <- read_csv(weekly_co2_url, skip = header_end_index, show_col_types = FALSE)
+
+co2_present <- co2_present %>%
+  mutate(date = make_date(year, month, day))
+
+co2_present <- as_tsibble(co2_present, index = date)
+
+co2_present$average[co2_present$average == -999.99] <- NA
+
+head(co2_present)
+```
+
+
+```{r}
+ggplot(co2_present, aes(x = date, y = average)) + 
+  geom_line() + 
+  theme_minimal() +
+  labs(title = "Time Series of CO2 Levels", x = "Date", y = "CO2 Concentration")
+```
+The plot shows a clear upward trend, indicating that CO2 levels have been increasing over the given time period. The pattern also shows seasonal fluctuations within each year, where the CO2 concentration peaks and then drops slightly, before rising again. The overall trend, however, is an increase in CO2 levels.
+
+```{r}
+acf(co2_present$average, na.action = na.pass)
+
+```
+The plot shows a strong positive autocorrelation at all lags up to 35, and all are above the significance level, indicating a very persistent time series with a strong seasonal or cyclic pattern. This might suggest that the time series data of CO2 concentrations have a consistent pattern that repeats over time, with no significant decay in correlation as the lag increases.
+
+```{r}
+pacf(co2_present$average, na.action = na.pass)
+
+```
+The plot indicates the presence of statistically significant partial autocorrelations at specific lags, suggesting an autoregressive component in the time series data. While the lag at zero always shows a correlation of one, other lags show correlations that are just above the confidence bounds, implying a potential, but not strong, autoregressive behavior. 
+
+```{r}
+ggplot(co2_present, aes(x = average)) + 
+  geom_histogram(binwidth = 1, fill = 'blue', color = 'black') +
+  theme_minimal() +
+  labs(title = "Histogram of CO2 Levels", x = "CO2 Concentration", y = "Frequency")
+```
+The plot shows multuple peaks suggesting more of a multimodal distribution. This could imply that there are multiple common CO2 levels within the data, possibly reflecting different environmental conditions or measurement periods. The data appears to be right-skewed. 
+
+#(1 point) Task 2b: Compare linear model forecasts against realized CO2
+Descriptively compare realized atmospheric CO2 levels to those predicted by your forecast from a linear time
+model in 1997 (i.e. “Task 2a”). (You do not need to run any formal tests for this task.)
+
+#(1 point) Task 3b: Compare ARIMA models forecasts against realized CO2
+Descriptively compare realized atmospheric CO2 levels to those predicted by your forecast from the ARIMA
+model that you fitted in 1997 (i.e. “Task 3a”). Describe how the Keeling Curve evolved from 1997 to the
+present.
+
+#(3 points) Task 4b: Evaluate the performance of 1997 linear and ARIMA models
+In 1997 you made predictions about the first time that CO2 would cross 420 ppm. How close were your
+models to the truth?
+After reflecting on your performance on this threshold-prediction task, continue to use the weekly data to
+generate a month-average series from 1997 to the present, and compare the overall forecasting performance
+of your models from Parts 2a and 3b over the entire period. (You should conduct formal tests for this task.)
+
+```{r month data}
+
+co2_present <- read_csv(weekly_co2_url, skip = header_end_index, show_col_types = FALSE)
+
+co2_present$average[co2_present$average == -999.99] <- NA
+
+co2_monthly <- co2_present %>%
+  group_by(year, month) %>%
+  summarise(average = mean(average, na.rm = TRUE),
+            .groups = "drop")
+
+co2_monthly <- co2_monthly %>%
+  mutate(Month = make_date(year, month, day = 1)) %>%
+  select(-year, -month)  
+
+co2_monthly_present <- as_tsibble(co2_monthly, index = Month)
+
+head(co2_monthly_present)
+```
+
+#(4 points) Task 5b: Train best models on present data
+Seasonally adjust the weekly NOAA data, and split both seasonally-adjusted (SA) and non-seasonallyadjusted
+(NSA) series into training and test sets, using the last two years of observations as the test sets.
+For both SA and NSA series, fit ARIMA models using all appropriate steps. Measure and discuss how your
+models perform in-sample and (psuedo-) out-of-sample, comparing candidate models and explaining your
+choice. In addition, fit a polynomial time-trend model to the seasonally-adjusted series and compare its
+performance to that of your ARIMA model.
+
+#(3 points) Task Part 6b: How bad could it get?
+With the non-seasonally adjusted data series, generate predictions for when atmospheric CO2 is expected
+to be at 420 ppm and 500 ppm levels for the first and final times (consider prediction intervals as well as
+point estimates in your answer). Generate a prediction for atmospheric CO2 levels in the year 2122. How
+confident are you that these will be accurate predictions?
+
+
+
