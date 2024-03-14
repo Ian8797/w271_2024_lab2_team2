@@ -1,0 +1,122 @@
+---
+title: "EDA 1997 CO2 Data"
+output: 'pdf_document'  
+classoption: landscape
+---
+
+```{r import packages}
+library(tidyverse)
+library(magrittr)
+library(patchwork)
+
+library(lubridate)
+
+library(tsibble)
+library(feasts)
+library(forecast)
+
+library(sandwich)
+library(lmtest)
+
+library(nycflights13)
+library(blsR)
+
+library(Matrix) 
+library(data.table) 
+library(stats)
+library(fable)
+```
+
+```{r load and format data}
+data <- datasets::co2
+
+data <- data %>% 
+  as_tsibble(data) 
+```
+
+
+## EDA 
+
+1. Description of how, where, and why the data is generated 
+
+The CO2 data set consists of 468 observations. Each observation represents the monthly total atmospheric concentration of CO2, measured in parts per million (ppm) and collected at the Mauna Loa Observatory in Hawaii. The data ranges from January 1959 to December 1997. The data is originally sourced from the Scripps institute and was collected as part of the Scripps CO2 Program. Observations for February, March, and April 1964 were unavailable so the values in the data et were generated via linear interpolation between the observations for January and May 1964. 
+
+
+2. Investigation of trend, seasonal and irregular elements 
+
+```{r time series eda}
+# Distribution 
+dist <- ggplot(data, aes(x = value)) +
+  geom_histogram() + 
+  ylab("Value") + 
+  xlab("Frequency") + 
+  ggtitle("CO2 Concentration Distribution")
+
+# Time series data 
+time_series <- ggplot(data, aes(x=index, y=value)) +
+  geom_line() +
+  ylab("Unemployment") +
+  xlab("Year-Month") +
+  ggtitle("CO2 Concentration 1959 - 1997")
+
+# ACF 
+acf <- ggAcf(data$value, lag.max = 50) +
+  ggtitle("ACF")
+
+# PACF
+pacf <- ggPacf(data$value, lag.max = 50) +
+  ggtitle("Partial ACF")
+
+(dist | time_series) / (acf | pacf) 
+```
+
+- Non-stationarity but variance stationary? i.e., variance is relatively constant overtime 
+- Clear from time series plot, ACF, and PACF that there is monthly seasonality present in the data 
+- Time series and ACF show evidence of a trend in the data: 1. continuously increasing at a consistent rate and 2. Slow decay in ACF 
+
+3. Trends in levels and growth rates should be discussed (long-run growth rate as annualized averages)
+
+```{r growth rate eda}
+annual_growth <- data %>% 
+  mutate(co2_diff = value - lag(value),
+         monthly_growth_rate = co2_diff / value * 100,
+         annualized_growth_rate = (1 + monthly_growth_rate)^12 - 1) %>% 
+  index_by(year_index = year(index)) %>% 
+  summarise(avg_annualized_growth_rate = mean(annualized_growth_rate)) %>% 
+  na.omit()
+ 
+# Distribution 
+dist <- ggplot(annual_growth, aes(x = avg_annualized_growth_rate)) +
+  geom_histogram() + 
+  ylab("Value") + 
+  xlab("Frequency") + 
+  ggtitle("Average CO2 Growth Rate Distribution")
+
+# Time series data 
+time_series <- ggplot(annual_growth, aes(x=year_index, y=avg_annualized_growth_rate)) +
+  geom_line() +
+  ylab("Unemployment") +
+  xlab("Year-Month") +
+  ggtitle("Average CO2 Growth Rate 1959 - 1997")
+
+# ACF 
+acf <- ggAcf(annual_growth$avg_annualized_growth_rate) +
+  ggtitle("ACF")
+
+# PACF
+pacf <- ggPacf(annual_growth$avg_annualized_growth_rate) +
+  ggtitle("Partial ACF")
+
+(dist | time_series) / (acf | pacf) 
+```
+- Growth rates follow a white noise process i.e., shows no autocorrelation 
+
+## Next steps 
+
+- How has the seasonal cycle of CO2 concentrations changed between 1958 and 1997? Is there an identifiable pattern that will persist into the future?
+- Is atmospheric CO2 concentration predictable? 
+
+De-trending? Seasonal adjustment? Differencing? 
+
+
+
