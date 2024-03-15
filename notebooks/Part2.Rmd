@@ -44,7 +44,7 @@ co2_present <- co2_present %>%
 
 co2_present <- as_tsibble(co2_present, index = date)
 
-co2_present$average[co2_present$average == -999.99] <- NA
+co2_present <- co2_present[co2_present$average != -999.99, ]
 
 head(co2_present)
 ```
@@ -68,7 +68,7 @@ The plot shows a strong positive autocorrelation at all lags up to 35, and all a
 pacf(co2_present$average, na.action = na.pass)
 
 ```
-The plot indicates the presence of statistically significant partial autocorrelations at specific lags, suggesting an autoregressive component in the time series data. While the lag at zero always shows a correlation of one, other lags show correlations that are just above the confidence bounds, implying a potential, but not strong, autoregressive behavior. 
+The plot indicates that there is no almost no significant partial autocorrelation in the data at lags greater than zero. This could suggest that a simple autoregressive model may not be a good fit for the data.
 
 ```{r}
 ggplot(co2_present, aes(x = average)) + 
@@ -98,7 +98,7 @@ of your models from Parts 2a and 3b over the entire period. (You should conduct 
 
 co2_present <- read_csv(weekly_co2_url, skip = header_end_index, show_col_types = FALSE)
 
-co2_present$average[co2_present$average == -999.99] <- NA
+co2_present <- co2_present[co2_present$average != -999.99, ]
 
 co2_monthly <- co2_present %>%
   group_by(year, month) %>%
