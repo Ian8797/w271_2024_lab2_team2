@@ -1,0 +1,316 @@
+---
+title: "EDA 1997 CO2 Data"
+output: 'pdf_document'  
+classoption: landscape
+---
+
+```{r import packages}
+library(tidyverse)
+library(magrittr)
+library(patchwork)
+
+library(lubridate)
+
+library(tsibble)
+library(feasts)
+library(forecast)
+
+library(sandwich)
+library(lmtest)
+
+library(nycflights13)
+library(blsR)
+
+library(Matrix) 
+library(data.table) 
+library(stats)
+library(fable)
+library(tseries)
+```
+
+```{r load and format data}
+data <- datasets::co2
+
+data <- data %>% 
+  as_tsibble(data) 
+```
+
+
+## EDA 
+
+1. Description of how, where, and why the data is generated 
+
+The CO2 data set consists of 468 observations. Each observation represents the monthly total atmospheric concentration of CO2, measured in parts per million (ppm) and collected at the Mauna Loa Observatory in Hawaii. The data ranges from January 1959 to December 1997. The data is originally sourced from the Scripps institute and was collected as part of the Scripps CO2 Program. Observations for February, March, and April 1964 were unavailable so the values in the data et were generated via linear interpolation between the observations for January and May 1964. 
+
+
+2. Investigation of trend, seasonal and irregular elements 
+
+```{r time series eda}
+# Distribution 
+dist <- ggplot(data, aes(x = value)) +
+  geom_histogram() + 
+  ylab("Value") + 
+  xlab("Frequency") + 
+  ggtitle("CO2 Concentration Distribution")
+
+# Time series data 
+time_series <- ggplot(data, aes(x=index, y=value)) +
+  geom_line() +
+  ylab("CO2 Concentration") +
+  xlab("Year-Month") +
+  ggtitle("CO2 Concentration 1959 - 1997")
+
+# ACF 
+acf <- ggAcf(data$value, lag.max = 50) +
+  ggtitle("ACF")
+
+# PACF
+pacf <- ggPacf(data$value, lag.max = 50) +
+  ggtitle("Partial ACF")
+
+(dist | time_series) / (acf | pacf) 
+```
+
+- Non-stationarity but variance stationary? i.e., variance is relatively constant overtime 
+- Clear from time series plot, ACF, and PACF that there is monthly seasonality present in the data 
+- Time series and ACF show evidence of a trend in the data: 1. continuously increasing at a consistent rate and 2. Slow decay in ACF 
+
+```{r time series eda}
+# Distribution 
+dist <- ggplot(data_diff, aes(x = value_diff)) +
+  geom_histogram() + 
+  ylab("Value") + 
+  xlab("Frequency") + 
+  ggtitle("CO2 Concentration Distribution")
+
+# Time series data 
+time_series <- ggplot(data_diff, aes(x=index, y=value_diff)) +
+  geom_line() +
+  ylab("CO2 Concentration") +
+  xlab("Year-Month") +
+  ggtitle("CO2 Concentration 1959 - 1997")
+
+# ACF 
+acf <- ggAcf(data_diff$value_diff, lag.max = 50) +
+  ggtitle("ACF")
+
+# PACF
+pacf <- ggPacf(data_diff$value_diff, lag.max = 50) +
+  ggtitle("Partial ACF")
+
+(dist | time_series) / (acf | pacf) 
+```
+
+3. Trends in levels and growth rates should be discussed (long-run growth rate as annualized averages)
+
+```{r growth rate eda}
+annual_growth <- data %>% filter(month == 1) %>%
+  mutate(co2_diff = value - lag(value),
+         growth_rate = co2_diff / lag(value) ) %>% 
+  na.omit()
+ 
+# Distribution 
+dist <- ggplot(annual_growth, aes(x = growth_rate)) +
+  geom_histogram() + 
+  ylab("Value") + 
+  xlab("Frequency") + 
+  ggtitle("Average CO2 Growth Rate Distribution")
+
+# Time series data 
+time_series <- ggplot(annual_growth, aes(x=index, y=growth_rate)) +
+  geom_line() +
+  ylab("Annualized Growth Rate") +
+  xlab("Year-Month") +
+  ggtitle("Average CO2 Growth Rate 1959 - 1997")
+
+# ACF 
+acf <- ggAcf(annual_growth$growth_rate) +
+  ggtitle("ACF")
+
+# PACF
+pacf <- ggPacf(annual_growth$growth_rate) +
+  ggtitle("Partial ACF")
+
+(dist | time_series) / (acf | pacf) 
+```
+- Growth rates follow a white noise process i.e., shows no autocorrelation 
+
+## Next steps 
+
+- How has the seasonal cycle of CO2 concentrations changed between 1958 and 1997? Is there an identifiable pattern that will persist into the future?
+- Is atmospheric CO2 concentration predictable? 
+
+De-trending? Seasonal adjustment? Differencing? 
+
+KSPSS test 
+
+
+## Part 2a
+
+```{r linear time trend model}
+
+data$month_since_start <- as.numeric(index(data) - min(index(data))) + 1
+
+lm_model <- lm(value ~ month_since_start, data=data)
+lm_model
+
+quad_model <- lm(value ~ I(month_since_start^2) , data=data)
+quad_model
+
+lm_residual_data <- data.frame(
+  predicted_values = fitted(lm_model),
+  residuals = rstandard(lm_model)
+)
+
+quad_residual_data <- data.frame(
+  predicted_values = fitted(quad_model),
+  residuals = rstandard(quad_model)
+)
+
+lm_resid_plot <- ggplot(lm_residual_data, aes(x = predicted_values, y = residuals)) +
+  geom_point() +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "red") +
+  geom_smooth(se = FALSE) +
+  labs(title = "Linear Model Standardized Residuals vs Fitted Values", 
+       x = "Fitted Values", y = "Standardized Residuals")
+
+quad_resid_plot <- ggplot(quad_residual_data, aes(x = predicted_values, y = residuals)) +
+  geom_point() +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "red") +
+  geom_smooth(se = FALSE) +
+  labs(title = "Quadratic Model Standardized Residuals vs Fitted Values", 
+       x = "Fitted Values", y = "Standardized Residuals")
+
+value_hist <- ggplot(data, aes(x = value)) +
+  geom_histogram(binwidth = 5, fill = "#69b3a2", color = "white", alpha = 0.8) +
+  labs(title = "Value spread of CO2 Levels",
+       x = "CO2 PPM",
+       y = "Frequency"
+       ) +
+  theme_minimal() +
+  theme(legend.position = "top")
+
+(lm_resid_plot / quad_resid_plot) 
+
+value_hist
+```
+
+The linear model produces residuals that are homoskedastic however the linearity assumption is not verified as the mean residual value deviates from zero. The quadratic model has similar homoskedastic errors but is similarly plagued by the lack of a linear relationship between the fitted and residual values. Taking a logarithm is not the appropriate decision for the data given that the variance of the residuals is constant over time.
+
+```{r polynomial_with_dummy_variables}
+
+data <- data %>% mutate(month = as.factor(month(index)))
+
+lm_seasonal_model <- lm(value ~ month_since_start + month, data=data)
+
+index <- seq(from = ymd("1998-01-01"), to = ymd("2020-12-01"), by = "1 month")
+
+ext_data <- data.frame(index = index) %>% as_tsibble(index=index) %>% mutate(month = as.factor(month(index))) 
+
+ext_data$month_since_start <- seq(max(data$month_since_start)+1,max(data$month_since_start)+(23*12))
+
+forecast <- data.frame(predict = predict(lm_seasonal_model, newdata = ext_data))
+
+forecast$index <- ext_data$index
+
+ggplot(forecast, aes(x=index, y=predict)) +
+  geom_line() +
+  ylab("CO2 Concentration") +
+  xlab("Year-Month") +
+  ggtitle("CO2 Concentration Forecast 1998 - 2022")
+
+```
+
+## Part 3a
+
+
+
+```{r stationary Test 1, warning=FALSE}
+
+adf_result <- adf.test(data$value)
+
+kpss_result <- kpss.test(data$value)
+
+paste("ADF Test p-value",adf_result$p.value)
+
+paste("KPSS Test p-value",kpss_result$p.value)
+
+```
+
+Both the ADF & KPSS tests determined that the series was non-stationary and needed to be differenced.
+
+```{r stationary Test 2, warning=FALSE}
+data_diff <- data %>% mutate(value_diff = difference(value)) %>% na.omit()
+
+diff_adf_result <- adf.test(data_diff$value_diff)
+
+diff_kpss_result <- kpss.test(data_diff$value_diff)
+
+paste("ADF Test p-value",diff_adf_result$p.value)
+
+paste("KPSS Test p-value",diff_kpss_result$p.value)
+```
+
+Now both tests conclude that the differenced series is stationary and modeling can continue on the differenced series.
+
+```{r ARIMA Modeling}
+
+model.bic<-data %>%
+model(ARIMA(value ~ 1 + pdq(1:10,1,1:10) + PDQ(0,0,0), ic="bic", stepwise=F, greedy=F,
+            order_constraint = p + q + P + Q <= 10))
+
+model.bic %>%
+report()
+```
+This model was selected using the BIC score. This approach penalizes additionally included terms during the fitting process to avoid overfitting. The ARIMA model chosen shows a strong autoregressive structure within in the data leading to 6 significant AR terms. This is of little suprise given the extremely cyclic kneeling curve. Additionally the differenced CO2 data has a cyclical slowing decaying ACF plot and several significant lags in the PACF plot as well.
+
+```{r residual ACF}
+
+model.bic %>%
+augment() %>%
+ACF(.resid) %>%
+autoplot()
+
+```
+It's clear from the residual ACF plot that there is still a covariance structure in the data that was not removed in modeling.
+
+```{r box jenkins}
+
+resid.ts<-model.bic %>%
+augment() %>%
+pull(.resid) %>%
+as.ts()
+
+Box.test(resid.ts, lag = 10, type = "Ljung-Box")
+
+```
+The Box-Ljung test confirms the covariance observation. Here we reject the null hypothesis that the residuals are randomly distributed. While a covariance structure still exists we will continue with this model as adding additional AR or MA terms is not advised by the BIC score.
+
+```{r ARIMA forcast 2022}
+
+model.forecasts<-forecast(model.bic, h=23*12)
+
+autoplot(model.forecasts) +
+  autolayer(data, series = "Historical Data", colour = "black") +
+  xlab("Year") +
+  ylab("Value") +
+  ggtitle("ARIMA Forecast for Next 20 Years")
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
