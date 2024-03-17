@@ -48,7 +48,9 @@ co2_present <- co2_present[co2_present$average != -999.99, ]
 
 head(co2_present)
 ```
-
+```{r}
+dim(co2_present)
+```
 
 ```{r}
 ggplot(co2_present, aes(x = date, y = average)) + 
@@ -77,6 +79,13 @@ ggplot(co2_present, aes(x = average)) +
   labs(title = "Histogram of CO2 Levels", x = "CO2 Concentration", y = "Frequency")
 ```
 The plot shows multuple peaks suggesting more of a multimodal distribution. This could imply that there are multiple common CO2 levels within the data, possibly reflecting different environmental conditions or measurement periods. The data appears to be right-skewed. 
+
+```{r}
+co2_ts <- ts(co2_present$average, frequency = 52)  # Set frequency to 52 for weekly data
+co2_stl <- stl(co2_ts, s.window = "periodic")
+plot(co2_stl)
+```
+
 
 #(1 point) Task 2b: Compare linear model forecasts against realized CO2
 Descriptively compare realized atmospheric CO2 levels to those predicted by your forecast from a linear time
