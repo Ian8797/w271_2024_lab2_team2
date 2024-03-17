@@ -67,6 +67,7 @@ The plot shows a strong positive autocorrelation at all lags up to 35, and all a
 ```{r}
 pacf(co2_present$average, na.action = na.pass)
 
+
 ```
 The plot indicates that there is no almost no significant partial autocorrelation in the data at lags greater than zero. This could suggest that a simple autoregressive model may not be a good fit for the data.
 
