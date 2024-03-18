@@ -1,0 +1,52 @@
+---
+title: "CO2 Emissions 1997 V1"
+author: "Team 2"
+date: "2024-03-18"
+output: 'pdf_document'  
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Context 
+
+- Climate science had gained a lot of traction 
+- Emphasis on climate change and the impact of rising CO2 levels on the global environment in the 1990s 
+- What has been studied so far? Svante Arrhenius & Charles Keeling 
+- How will this affect/inform the future? 
+
+## Data and Exploration 
+
+- The CO2 data set consists of 468 observations. Each observation represents the monthly total atmospheric concentration of CO2, measured in parts per million (ppm) and collected at the Mauna Loa Observatory in Hawaii. The data ranges from January 1959 to December 1997. The data is originally sourced from the Scripps institute and was collected as part of the Scripps CO2 Program. Observations for February, March, and April 1964 were unavailable so the values in the data et were generated via linear interpolation between the observations for January and May 1964. 
+- How is it measured/collected? 
+- Plot what data looks like to justify concern 
+
+## Models and Forecasts
+
+- Why modeling is important to aid understanding? 
+- Empirical evidence 
+
+### *Linear Model*
+
+- Functional form 
+- Results 
+- Interpretation/evaluation? 
+
+### *ARIMA Model*
+
+- Functional form 
+- Results 
+- ç
+
+### *Forecasts*
+
+- Forecasts 
+- Interpretation/evaluation? 
+
+## Conclusions 
+
+- Implications 
+
+
+
