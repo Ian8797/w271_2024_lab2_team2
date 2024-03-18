@@ -254,6 +254,10 @@ polynomial_time_trend.model |>
   labs(x = "Month", y = "CO2 Concentration (ppm)",
        title = "Mona Loa CO2 Concentration 1975-2022 (Polynomial time trend model)")
 ```
+```{r polynomial time-trend model summary}
+polynomial_time_trend.model |>
+report()
+```
 
 ```{r polynomial time-trend model forecast}
 poly.forecast <- polynomial_time_trend.model |>
