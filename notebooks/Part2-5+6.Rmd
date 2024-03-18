@@ -125,6 +125,7 @@ co2_monthly_present_gap_filled <- co2_monthly_present |>
 
 scan_gaps(co2_monthly_present_gap_filled)
 ```
+We identified a gap in the data series on December, 1975. Given that it was the only gap in the series and the closest data point observed is on November 30, 1975, we have decided to fill the gap with November 30, 1975 data point. 
 
 #(4 points) Task 5b: Train best models on present data
 Seasonally adjust the weekly NOAA data, and split both seasonally-adjusted (SA) and non-seasonally adjusted
@@ -134,16 +135,41 @@ models perform in-sample and (psuedo-) out-of-sample, comparing candidate models
 choice. In addition, fit a polynomial time-trend model to the seasonally-adjusted series and compare its
 performance to that of your ARIMA model.
 
-```{r Task 5b}
+```{r STL}
+seasonal.plot <- co2_monthly_present_gap_filled |>
+  gg_subseries(average) +
+  labs(y = "CO2 Concentration (Millions)", x = "Month",
+       title = "Seasonal plot: CO2 Concentration in Mona Loa for 1975-2022")
+
+seasonal.plot
+```
+
+```{r Task 5b STL}
 STL.model <- co2_monthly_present_gap_filled |>
-  fill_gaps()|>
   model(
     STL(average ~ trend(window = 6) + season(window = "periodic"),
     robust = TRUE))
 STL.model |>
   components() |>
   autoplot()
+```
 
+As we have observed in our EDA section, we believe the CO2 levels have both overall upward trend and very possible seasonal trend. We used STL decomposition to decompose the data into 3 components: 1) upward trend using 6 months window, 2) seasonal trend which is observed as yearly trend, and 3) remainder, which the mean is observed close to zero, and fluctuates around reasonably bounded variance. We will proceed with further investigation to check for stationary on the remainder. 
+
+```{r STL part 2}
+STL.model.resids <- components(STL.model) |>
+ACF(remainder) |>
+autoplot() + labs(title = "Residuals of multiplicative decomposition")
+
+STL.model.resids
+```
+
+```{r}
+Box.test(components(STL.model)$remainder, lag = 10, type = "Ljung-Box")
+```
+From the residual plots and the Box-Ljung test above, it looks like although the residuals of the decomposition are stationary, they do not appear to be completely white noise. This means that while the decomposition method eliminates the deterministic components from this specific time series, there are some correlation remains in the data. As a result, we moved on to fit our data using ARIMA models that separately optimize for AIC, AICc and BIC.
+
+```{r ARIMA}
 co2_monthly_present_gap_filled.train <- co2_monthly_present_gap_filled  |>
   filter(year(Month) < 2022)
 
@@ -159,7 +185,50 @@ models |>
  augment() |>
  ACF(.resid)|>
  autoplot()
+```
+According to the above, the residuals appear to be close to white noise. There is no significant lags, but with some seasonal pattern that suggests we should run a statistical test on the residuals from the models to see if they are randomly distributed i.e. are white noise, which is what we want for a good model fit, or if they appear to have some serial correlation over time and violate the assumptions for a stationary time series fit. 
 
+```{r SARIMA models}
+models |>
+  pivot_longer(everything(), names_to = "Model name", values_to = "SARIMA Model")
+```
+
+```{r SARIMA model comparison}
+models |>
+  report()
+```
+
+As depicted above, there is no major difference in the underlying SARIMA model, all elected SARIMA(0,1,1)(2,1,3)[12] amongst the aic, aicc, and bic models. We have decided to use BIC model since it produced the minimum IC scores across the three metrics.
+
+```{r SARIMA model selection}
+models |>
+  select(.model=bic) |>
+  gg_tsresiduals()
+```
+```{r SARIMA Box Ljung test}
+models |>
+  augment() |>
+  filter(.model=="bic") |>
+  select(.resid) %>%
+  as.ts() %>%
+  Box.test(., lag = 10, type = "Ljung-Box")
+```
+From the residual plots and the Box-Ljung test above, it looks like although the residuals of the SARIMA model are stationary and appear to be white noise. As a result, we decided to use the SARIMA model to forecast using our test data.
+
+```{r forecasting using SARIMA}
+SARIMA.model <- models |>
+  select(.model=bic)
+
+SARIMA.forecast <- SARIMA.model |>
+  forecast(co2_monthly_present_gap_filled.test) 
+
+SARIMA.forecast  |>
+  autoplot() +
+  autolayer(co2_monthly_present_gap_filled.test) +
+  geom_line(data=SARIMA.model |> augment() |>
+  filter(year(Month) > 2020), aes(Month, .fitted)) +
+  facet_wrap(~.model, ncol = 1) +
+  labs(title = "Mona Loa CO2 Concentration Forecast", x = "Month", y = "CO2 Concentration (ppm)")
 ```
 
 
