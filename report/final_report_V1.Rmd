@@ -1,5 +1,5 @@
 ---
-title: "CO2 Emissions 1997 V1"
+title: "CO2 Emissions 1997"
 author: "Team 2"
 date: "2024-03-18"
 output: 'pdf_document'  
@@ -9,12 +9,13 @@ output: 'pdf_document'
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
+\center _POV: 1997_ \center
+
 ## Context 
 
-- Climate science had gained a lot of traction 
-- Emphasis on climate change and the impact of rising CO2 levels on the global environment in the 1990s 
+Climate science has emerged as a leading field of interest in the 20th century. Efforts to bring awareness to the impact of human intervention on the environment, such as the burning of fossil fuels, have proved fruitful. The Intergovernmental Panel on Climate Change (IPCC) has reinforced these efforts. In 1990 they released the First Climate Assessment Report stating that "human activities are substantially increasing the atmospheric concentration of greenhouse gases" (IPCC, 1990). Greenhouse gases are a group of gases, such as carbon dioxide, methane, and nitrous oxide, that when present in higher concentrations in the atmosphere, raise the surface temperate of the Earth. Carbon dioxide is the most abundant greenhouse gas that is produced from human activity, namely energy production via fossil fuel combustion. Since the industrial revolution, energy consumption from petroleum and natural gas sources has risen dramatically. This report aims to investigate the following questions: How have the levels of atmospheric CO2 changed over time? And, is there an identifiable pattern that will persist into the future? Forecasting atmospheric carbon dioxide concentrations allows scientists to measure the corresponding impact to the global environment and justify the need for human intervention in the opposite direction. 
+
 - What has been studied so far? Svante Arrhenius & Charles Keeling 
-- How will this affect/inform the future? 
 
 ## Data and Exploration 
 
@@ -37,7 +38,6 @@ knitr::opts_chunk$set(echo = TRUE)
 
 - Functional form 
 - Results 
-- ç
 
 ### *Forecasts*
 
