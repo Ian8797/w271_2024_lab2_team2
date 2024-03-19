@@ -223,8 +223,6 @@ ggplot(forecast, aes(x=index, y=predict)) +
 
 ## Part 3a
 
-
-
 ```{r stationary Test 1, warning=FALSE}
 
 adf_result <- adf.test(data$value)
@@ -255,28 +253,43 @@ Now both tests conclude that the differenced series is stationary and modeling c
 
 ```{r ARIMA Modeling}
 
-model.bic<-data %>%
-model(ARIMA(value ~ 1 + pdq(1:10,1,1:10) + PDQ(0,0,0), ic="bic", stepwise=F, greedy=F,
+model_ma.bic<-data %>%
+model(ARIMA(value ~ 1 + pdq(0,0:1,0:3) + PDQ(0,0:1,0:3), ic="bic", stepwise=F, greedy=F,
             order_constraint = p + q + P + Q <= 10))
 
-model.bic %>%
+model_ma.bic %>%
 report()
+
+model_ar.bic<-data %>%
+model(ARIMA(value ~ 1 + pdq(0:3,0:1,0) + PDQ(0:3,0:1,0), ic="bic", stepwise=F, greedy=F,
+            order_constraint = p + q + P + Q <= 10))
+
+model_ar.bic %>%
+report()
+
+model_full.bic<-data %>%
+model(ARIMA(value ~ 1 + pdq(0:3,0:1,0:3) + PDQ(0:3,0:1,0:3), ic="bic", stepwise=F, greedy=F,
+            order_constraint = p + q + P + Q <= 10))
+
+model_full.bic %>%
+report()
+
 ```
-This model was selected using the BIC score. This approach penalizes additionally included terms during the fitting process to avoid overfitting. The ARIMA model chosen shows a strong autoregressive structure within in the data leading to 6 significant AR terms. This is of little suprise given the extremely cyclic kneeling curve. Additionally the differenced CO2 data has a cyclical slowing decaying ACF plot and several significant lags in the PACF plot as well.
+The final model was selected using the BIC scores with the ultimate winner being the SARIMA (0,1,1) (0,1,1) [12] model. BIC score was our preferred way of selecting a model due to its inherent penalty on adding additional terms leading to a well fitted and simpler model. Finding the ideal model is done through grid search of various parameters as we employed three simultaneous searches to see the most variety of different model specialties. All searches included non-zero difference terms while one model focused on AR terms, another MA terms and one finally on both at the same time. 
 
 ```{r residual ACF}
 
-model.bic %>%
+model_ma.bic %>%
 augment() %>%
 ACF(.resid) %>%
 autoplot()
 
 ```
-It's clear from the residual ACF plot that there is still a covariance structure in the data that was not removed in modeling.
+From simple inspection of the residual ACF plot is hard to conclude if the full covariance structure has been removed from the data. However, it seems likely as lags rarely fall outside the 95% confidence interval around 0 correlation.
 
 ```{r box jenkins}
 
-resid.ts<-model.bic %>%
+resid.ts<-model_ma.bic %>%
 augment() %>%
 pull(.resid) %>%
 as.ts()
@@ -284,23 +297,39 @@ as.ts()
 Box.test(resid.ts, lag = 10, type = "Ljung-Box")
 
 ```
-The Box-Ljung test confirms the covariance observation. Here we reject the null hypothesis that the residuals are randomly distributed. While a covariance structure still exists we will continue with this model as adding additional AR or MA terms is not advised by the BIC score.
+Having a p-value greater than .05 from the Box-Ljung test implies we fail to reject the null hypothesis that residuals are randomly distributed. Thus the residuals do not exhibit significant autocorrelation giving greater confidence that the model found is appropriate for this data.
+
 
 ```{r ARIMA forcast 2022}
 
-model.forecasts<-forecast(model.bic, h=23*12)
+model_ma.forecasts<-forecast(model_ma.bic, h=25*12)
 
-autoplot(model.forecasts) +
+autoplot(model_ma.forecasts) +
   autolayer(data, series = "Historical Data", colour = "black") +
   xlab("Year") +
   ylab("Value") +
-  ggtitle("ARIMA Forecast for Next 20 Years")
+  ggtitle("ARIMA Forecast for Next 25 Years")
 
 ```
+## Part 4a
+
+```{r Forecast atmospheric C02 growth}
+model_ma.forecast_2100 <- forecast(model_ma.bic, h=103*12)
+
+forecast_values <- model_ma.forecast_2100$value
+
+level_420 <- 
+level_500 <- 
+
+for (f in forecast_values) {
+  
+  
+  
+}
 
 
 
-
+```
 
 
 
