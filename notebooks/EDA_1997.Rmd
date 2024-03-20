@@ -75,7 +75,7 @@ pacf <- ggPacf(data$value, lag.max = 50) +
 - Clear from time series plot, ACF, and PACF that there is monthly seasonality present in the data 
 - Time series and ACF show evidence of a trend in the data: 1. continuously increasing at a consistent rate and 2. Slow decay in ACF 
 
-```{r time series eda}
+```{r diff time series eda}
 
 data_diff <- data
 data_diff$value_diff <- difference(data_diff$value)
@@ -325,23 +325,74 @@ forecast_values <- model_ma.forecast_2100$value
 i <- 1
 
 f_level_420 <- list()
-f_level_500 <- list()
+f_level_420_n <- list()
+f_level_420_f <- list()
 
+f_level_500 <- list()
+f_level_500_n <- list()
+f_level_500_f <- list()
 
 l_level_420 <- list()
+l_level_420_n <- list()
+l_level_420_f <- list()
+
 l_level_500 <- list()
+l_level_500_n <- list()
+l_level_500_f <- list()
 
 for (f in forecast_values) {
   
   mu <- as.numeric(f[1])
   sigma <- as.numeric(f[2])
   
-  if (mu >= 420) {
+  if (mu >= 420) { # first at 420
      f_level_420 <- c(f_level_420, i)
   }
   
-  if (mu >= 500) {
+  if (mu + (2*sigma) >= 420) { # first at 420 (near term)
+     f_level_420_n <- c(f_level_420_n, i)
+  }
+  
+  if (mu - (2*sigma) >= 420) { # first at 420 (far term)
+     f_level_420_f  <- c(f_level_420_f, i)
+  }
+  
+  if (mu < 420) { # last at 420
+     l_level_420 <- c(l_level_420, i)
+  }
+  
+  if (mu + (2*sigma) < 420) { # last at 420 (near term)
+     l_level_420_n <- c(l_level_420_n, i)
+  }
+  
+  if (mu - (2*sigma) < 420) { # last at 420 (far term)
+     l_level_420_f <- c(l_level_420_f, i)
+  }
+  
+  
+  if (mu >= 500) { # first at 500
      f_level_500 <- c(f_level_500, i)
+  }
+  
+  if (mu + (2*sigma) >= 500) { # first at 500 (near term)
+     f_level_500_n <- c(f_level_500_n, i)
+  }
+  
+  if (mu - (2*sigma) >= 500) { # first at 500 (far term)
+     f_level_500_f <- c(f_level_500_f, i)
+  }
+  
+  
+  if (mu < 500) { # last at 500
+     l_level_500 <- c(l_level_500, i)
+  }
+  
+  if (mu + (2*sigma) < 500) { # last at 500 (near term)
+     l_level_500_n <- c(l_level_500_n, i)
+  }
+  
+  if (mu - (2*sigma) < 500) { # last at 500 (far term)
+     l_level_500_f <- c(l_level_500_f, i)
   }
   
   
@@ -349,17 +400,50 @@ for (f in forecast_values) {
 
 }
 
+f_420_n <- model_ma.forecast_2100$index[f_level_420_n[[1]]]
+f_420 <- model_ma.forecast_2100$index[f_level_420[[1]]]
+f_420_f <- model_ma.forecast_2100$index[f_level_420_f[[1]]]
 
+paste('Forecated mean first time at 420 ppm :',f_420)
+paste('95% Range from:',f_420_n, 'to',f_420_f)
 
+l_420_n <- model_ma.forecast_2100$index[l_level_420_n[[length(l_level_420_n)]]+1]
+l_420 <- model_ma.forecast_2100$index[l_level_420[[length(l_level_420)]]+1]
+l_420_f <- model_ma.forecast_2100$index[l_level_420_f[[length(l_level_420_f)]]+1]
 
+paste('Forecated mean last time at 420 ppm :',l_420)
+paste('95% Range from:',l_420_n, 'to',l_420_f)
 
+f_500_n <- model_ma.forecast_2100$index[f_level_500_n[[1]]]
+f_500 <- model_ma.forecast_2100$index[f_level_500[[1]]]
+f_500_f <- model_ma.forecast_2100$index[f_level_500_f[[1]]]
+
+paste('Forecated mean first time at 500 ppm :',f_500)
+paste('95% Range from:',f_500_n, 'to',f_500_f)
+
+l_500_n <- model_ma.forecast_2100$index[l_level_500_n[[length(l_level_500_n)]]+1]
+l_500 <- model_ma.forecast_2100$index[l_level_500[[length(l_level_500)]]+1]
+l_500_f <- model_ma.forecast_2100$index[l_level_500_f[[length(l_level_500_f)]]+1]
+
+paste('Forecated mean last time at 500 ppm :',l_500)
+paste('95% Range from:',l_500_n, 'to',l_500_f)
+
+last_index <- length(model_ma.forecast_2100$index)
+last_year <- last_index-11
+
+prediction_2100 <- (mean(model_ma.forecast_2100$value[last_index]) + mean(model_ma.forecast_2100$value[last_year]))/2
+
+paste('2100 C02 ppm prediction:',round(prediction_2100,2))
 
 ```
 
+Confidence is low in all of these predictions due to the widening variance of the predictions over time. Despite the strong cyclical patterns forecasting this far out in time is an incredibly hard task to do accurately.
 
 
 ```{r}
-model_ma.forecast_2100$index[305]
+
+
+
 ```
 
 
