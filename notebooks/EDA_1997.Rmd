@@ -76,6 +76,9 @@ pacf <- ggPacf(data$value, lag.max = 50) +
 - Time series and ACF show evidence of a trend in the data: 1. continuously increasing at a consistent rate and 2. Slow decay in ACF 
 
 ```{r time series eda}
+
+data_diff <- data
+data_diff$value_diff <- difference(data_diff$value)
 # Distribution 
 dist <- ggplot(data_diff, aes(x = value_diff)) +
   geom_histogram() + 
@@ -104,6 +107,9 @@ pacf <- ggPacf(data_diff$value_diff, lag.max = 50) +
 3. Trends in levels and growth rates should be discussed (long-run growth rate as annualized averages)
 
 ```{r growth rate eda}
+
+data <- data %>% mutate(month = as.factor(month(index)))
+
 annual_growth <- data %>% filter(month == 1) %>%
   mutate(co2_diff = value - lag(value),
          growth_rate = co2_diff / lag(value) ) %>% 
@@ -199,8 +205,6 @@ The linear model produces residuals that are homoskedastic however the linearity
 
 ```{r polynomial_with_dummy_variables}
 
-data <- data %>% mutate(month = as.factor(month(index)))
-
 lm_seasonal_model <- lm(value ~ month_since_start + month, data=data)
 
 index <- seq(from = ymd("1998-01-01"), to = ymd("2020-12-01"), by = "1 month")
@@ -217,7 +221,7 @@ ggplot(forecast, aes(x=index, y=predict)) +
   geom_line() +
   ylab("CO2 Concentration") +
   xlab("Year-Month") +
-  ggtitle("CO2 Concentration Forecast 1998 - 2022")
+  ggtitle("CO2 Concentration Forecast 1998 - 2020")
 
 ```
 
@@ -275,7 +279,7 @@ model_full.bic %>%
 report()
 
 ```
-The final model was selected using the BIC scores with the ultimate winner being the SARIMA (0,1,1) (0,1,1) [12] model. BIC score was our preferred way of selecting a model due to its inherent penalty on adding additional terms leading to a well fitted and simpler model. Finding the ideal model is done through grid search of various parameters as we employed three simultaneous searches to see the most variety of different model specialties. All searches included non-zero difference terms while one model focused on AR terms, another MA terms and one finally on both at the same time. 
+The final model was selected using the BIC scores with the ultimate winner being the SARIMA (0,1,1) (0,1,1) [12] model. BIC score was our preferred way of selecting a model due to its inherent penalty on adding additional terms leading to a well fitted and simpler model. Finding the ideal model is done through grid search of various parameters as we employed three simultaneous searches to see the most variety of different model specialties. All searches included non-zero difference terms based on the our EDA while one model focused on AR terms, another MA terms and one finally on both at the same time. 
 
 ```{r residual ACF}
 
@@ -318,14 +322,35 @@ model_ma.forecast_2100 <- forecast(model_ma.bic, h=103*12)
 
 forecast_values <- model_ma.forecast_2100$value
 
-level_420 <- 
-level_500 <- 
+i <- 1
+
+f_level_420 <- list()
+f_level_500 <- list()
+
+
+l_level_420 <- list()
+l_level_500 <- list()
 
 for (f in forecast_values) {
   
+  mu <- as.numeric(f[1])
+  sigma <- as.numeric(f[2])
+  
+  if (mu >= 420) {
+     f_level_420 <- c(f_level_420, i)
+  }
+  
+  if (mu >= 500) {
+     f_level_500 <- c(f_level_500, i)
+  }
   
   
+  i <- i + 1
+
 }
+
+
+
 
 
 
@@ -333,10 +358,9 @@ for (f in forecast_values) {
 
 
 
-
-
-
-
+```{r}
+model_ma.forecast_2100$index[305]
+```
 
 
 
