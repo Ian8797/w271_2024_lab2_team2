@@ -1,0 +1,205 @@
+---
+title: "CO2 Emissions 1997"
+author: "Team 2"
+date: "2024-03-18"
+output: 'pdf_document'  
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(magrittr)
+library(patchwork)
+
+library(lubridate)
+
+library(tsibble)
+library(feasts)
+#library(forecast)
+
+library(sandwich)
+library(lmtest)
+
+library(nycflights13)
+library(blsR)
+
+library(Matrix) 
+library(data.table) 
+library(stats)
+library(fable)
+library(tseries)
+library(reprex)
+library(stargazer)
+```
+
+\centerline{\textit{POV: 1997}}
+
+## Context 
+
+Climate science has emerged as a leading field of interest in the 20th century. Efforts to bring awareness to the impact of human intervention on the environment, such as the burning of fossil fuels, have proved fruitful. The Intergovernmental Panel on Climate Change (IPCC) has reinforced these efforts. In 1990 they released the First Climate Assessment Report stating that "human activities are substantially increasing the atmospheric concentration of greenhouse gases" (IPCC, 1990). Greenhouse gases are a group of gases, such as carbon dioxide, methane, and nitrous oxide, that when present in higher concentrations in the atmosphere, raise the surface temperate of the Earth. Carbon dioxide is the most abundant greenhouse gas that is produced from human activity, namely energy production via fossil fuel combustion. Since the industrial revolution, energy consumption from petroleum and natural gas sources has risen dramatically. This report aims to investigate the following questions: How have the levels of atmospheric CO2 changed over time? And, is there an identifiable pattern that will persist into the future? Forecasting atmospheric carbon dioxide concentrations allows scientists to measure the corresponding impact to the global environment and justify the need for human intervention in the opposite direction. 
+
+## Data and Exploration 
+
+```{r load and format data, echo=FALSE}
+data <- datasets::co2
+
+data <- data %>% 
+  as_tsibble(data) %>% 
+  mutate(month = as.factor(month(index)))
+```
+
+Charles Keeling was a research scientist who made it his life's work to survey the atmosphere in hopes of confirming Svante Arrhenius's theory that fossil fuel combustion is increasing the concentration of CO2 in the atmosphere. To this end, Keeling collected atmospheric CO2 concentration measurements at a number of sampling-stations including the Mauna Loa Observatory in Hawaii. These measurements were taken using a CO2 analyzer which detects the amount of infrared absorption present in a air sample and turns it into a mole fraction of CO2, defined as the total CO2 molecules divided by the total non-water vapor molecules in the air, measured in parts per million (ppm). This report uses the data collected at the Mauna Loa Observatory between January 1959 and December 1997. The dataset consists of 468 observations with each observation representing the monthly total atmospheric concentration of CO2 (ppm). The observations for February, March, and April 1964 were unavailable so the values in the dataset were generated via linear interpolation between the observations for January and May 1964. 
+
+In order to better understand the characteristics of this time series, we conducted a exploratory analysis prior to modeling. Figure 1 shows the time series plot for CO2 concentration, its autocorrelation plot, and its partial autocorrelation plot. The time series plot shows a clear positive trend as well as the presence of seasonality. The autocorrelation plot provides evidence to support the presence of both trend and seasonality as it decays with increasing lags and shows a spike at about every twelfth lag, indicating a seasonal cycle. 
+
+- Discuss seasonal/trend decomposition 
+- What about growth rates?
+
+```{r time series plot, echo=FALSE, fig.width = 10, fig.height = 3}
+time_series <- ggplot(data, aes(x=index, y=value)) +
+  geom_line() +
+  ylab("CO2 Concentration") +
+  xlab("Time") +
+  ggtitle("CO2 Concentration 1959 - 1997")
+
+# acf <- ggAcf(data$value, lag.max = 50) +
+#   ggtitle("ACF")
+# 
+# pacf <- ggPacf(data$value, lag.max = 50) +
+#   ggtitle("Partial ACF")
+# 
+# time_series + acf + pacf + plot_annotation(expression(italic('Figure 1. Time Series, ACF, and PACF')), theme=theme(plot.title=element_text(hjust=0.5)))
+```
+
+## Models and Forecasts
+
+- Why modeling is important to aid understanding? 
+- Empirical evidence 
+
+### *Linear Model*
+
+```{r  linear model, echo = FALSE, results='hide'}
+data$month_since_start <- as.numeric(index(data) - min(index(data))) + 1
+
+lm_model <- lm(value ~ month_since_start, data=data)
+summary(lm_model)
+```
+```{r  quadratic model, echo = FALSE, results='hide'}
+quad_model <- lm(value ~ I(month_since_start^2) , data=data)
+summary(quad_model)
+```
+```{r residual plots linear models, echo = FALSE}
+lm_residual_data <- data.frame(
+  predicted_values = fitted(lm_model),
+  residuals = rstandard(lm_model)
+)
+
+quad_residual_data <- data.frame(
+  predicted_values = fitted(quad_model),
+  residuals = rstandard(quad_model)
+)
+
+lm_resid_plot <- ggplot(lm_residual_data, aes(x = predicted_values, y = residuals)) +
+  geom_point() +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "red") +
+  geom_smooth(se = FALSE) +
+  labs(title = "Linear Model Standardized Residuals vs Fitted Values", 
+       x = "Fitted Values", y = "Standardized Residuals")
+
+quad_resid_plot <- ggplot(quad_residual_data, aes(x = predicted_values, y = residuals)) +
+  geom_point() +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "red") +
+  geom_smooth(se = FALSE) +
+  labs(title = "Quadratic Model Standardized Residuals vs Fitted Values", 
+       x = "Fitted Values", y = "Standardized Residuals")
+
+lm_resid_plot / quad_resid_plot
+```
+```{r polynomial time trend model, echo = FALSE}
+lm_seasonal_model <- lm(value ~ month_since_start + month, data=data)
+summary(lm_seasonal_model)
+```
+
+- Functional form: y = t + e (co2 concentration = time index + error) &  y = t^2 + e
+- Results
+  - High R-squared values 
+  - Significant p-values 
+- Interpretation/evaluation? 
+  - U-shaped (and upside down U-shaped) patterns
+  - Suggest linear models are not appropriate for the data
+  - Linear model predicting too low middle values 
+  - Quadratic model predicting too high middle values 
+
+### *ARIMA Model*
+
+```{r ARIMA Modeling, echo = FALSE}
+model_ma.bic<-data %>%
+model(ARIMA(value ~ 1 + pdq(0,0:1,0:3) + PDQ(0,0:1,0:3), ic="bic", stepwise=F, greedy=F,
+            order_constraint = p + q + P + Q <= 10))
+
+model_ar.bic<-data %>%
+model(ARIMA(value ~ 1 + pdq(0:3,0:1,0) + PDQ(0:3,0:1,0), ic="bic", stepwise=F, greedy=F,
+            order_constraint = p + q + P + Q <= 10))
+
+model_full.bic<-data %>%
+model(ARIMA(value ~ 1 + pdq(0:3,0:1,0:3) + PDQ(0:3,0:1,0:3), ic="bic", stepwise=F, greedy=F,
+            order_constraint = p + q + P + Q <= 10))
+
+# Report model summaries 
+model_ma.bic %>% # Best BIC model to use for forecasting 
+report()
+
+model_ar.bic %>%
+report()
+
+model_full.bic %>%
+report()
+
+```
+
+- Functional form 
+- Results 
+
+### *Forecasts*
+
+```{r polynomial forecasts, echo = FALSE, results = 'hide'}
+library(forecast)
+index <- seq(from = ymd("1998-01-01"), to = ymd("2020-12-01"), by = "1 month")
+
+ext_data <- data.frame(index = index) %>% 
+  as_tsibble(index=index) %>% 
+  mutate(month = as.factor(month(index))) 
+
+ext_data$month_since_start <- seq(max(data$month_since_start)+1,max(data$month_since_start)+(23*12))
+
+forecast <- data.frame(predict = predict(lm_seasonal_model, newdata = ext_data))
+
+forecast$index <- ext_data$index
+
+ggplot(forecast, aes(x=index, y=predict)) +
+  geom_line() +
+  ylab("CO2 Concentration") +
+  xlab("Year-Month") +
+  ggtitle("CO2 Concentration Forecast 1998 - 2020")
+```
+
+```{r ARIMA forcast 2022, echo=FALSE}
+model_ma.forecasts<-forecast(model_ma.bic, h=25*12)
+
+autoplot(model_ma.forecasts) +
+  autolayer(data, colour = "black", .vars = value) +
+  xlab("Year") +
+  ylab("Value") +
+  ggtitle("ARIMA Forecast for Next 25 Years")
+```
+
+- Forecasts 
+- Predictions for when CO2 is expected to be at 420 ppm and 500 ppm 
+- Interpretation/evaluation? 
+
+## Conclusions 
+
+- Implications 
+
+
+
