@@ -343,6 +343,8 @@ pacf <- ggPacf(co2_present$average, lag.max = 50) +
 
 The time series plot clearly shows an increasing trend in CO2 levels over time with regular seasonal fluctuations. This trend is consistent with the historical Keeling Curve data. The ACF plot reveals strong positive correlations at all lags, suggesting a very persistent and seasonal pattern in the CO2 data. In contrast, the PACF plot shows little to no significant correlations beyond the initial lag, implying that an autoregressive model may not be the best fit for this data. The distribution of CO2 concentrations indicates a multimodal distribution, suggesting the presence of different states in the data, potentially reflecting various environmental factors. With this understanding of our current data, we can now turn to compare it with the model forecasts from earlier sections of the report.
 
+### Comparision of Linear and SARIMA Models with Present data
+
 
 ```{r month data, echo=FALSE}
 
@@ -520,3 +522,4 @@ print(accuracy_df)
 
 Looking at the performance metrics of all three linear and SARIMA models, we see that the simple linear model shows high errors across all metrics. In contrast, both the quadratic and seasonal ploynomial models demonstrate lower error values, suggesting a more accurate representation of the data trends. The SARIMA models—SARIMA AR, SARIMA MA, and SARIMA Full—present moderate errors, with SARIMA MA and SARIMA Full yielding similar performance metrics. Among the models assessed, the seasonal polynomial model stands out with the lowest RMSE value at 0.5776, highlighting its accuracy in tracking the actual data points.
 
+### Models
