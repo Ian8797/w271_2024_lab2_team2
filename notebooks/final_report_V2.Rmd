@@ -397,7 +397,7 @@ SARIMA.model |>
   gg_tsresiduals() +
   labs(title = "SARIMA model residuals")
 ```
-According to the above, the residuals of SARIMA model appear to be close to white noise. There is no significant lags, but with some seasonal pattern that suggests we should run a statistical test on the residuals from the models to see if they are randomly distributed i.e. are white noise, which is what we want for a good model fit, or if they appear to have some serial correlation over time and violate the assumptions for a stationary time series fit. And the Box-Ljung test result p-value of 0.53 > 0.05, it looks like the residuals of the SARIMA model are stationary and appeared to be white noise. As a result, we decided to use the SARIMA model to forecast using our test data.
+The residuals of SARIMA model appear to be close to white noise. There is no significant lags, but with some seasonal pattern that suggests we should run a statistical test on the residuals from the models to see if they are randomly distributed i.e. are white noise, which is what we want for a good model fit, or if they appear to have some serial correlation over time and violate the assumptions for a stationary time series fit. The Box-Ljung test result p-value of 0.53 > 0.05 confirmed that the residuals of the SARIMA model are stationary and appeared to be white noise. And we performed the similar steps and test on Polynomial model confirmed the same, so we decided to use both models for forecasting and accuracy comparison.
 
 ```{r SARIMA Box Ljung test, echo = FALSE,  warning=FALSE, include=FALSE}
 models |>
