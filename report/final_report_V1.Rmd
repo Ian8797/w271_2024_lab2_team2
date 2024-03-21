@@ -317,12 +317,12 @@ ggplot(data = combined_data) +
   scale_color_manual(
     name = "Model",
     values = c("ARIMA MA" = "blue", "Polynomial Seasonal" = "darkgreen"),
-    labels = c("ARIMA MA", "Polynomial Seasonal")
+    labels = c("SARIMA MA", "Polynomial Seasonal")
   ) +
   scale_linetype_manual(
     name = "Model",
     values = c("ARIMA MA" = "solid", "Polynomial Seasonal" = "solid"),
-    labels = c("ARIMA MA", "Polynomial Seasonal")
+    labels = c("SARIMA MA", "Polynomial Seasonal")
   ) +
   guides(colour = guide_legend(order = 1), linetype = guide_legend(order = 1)) +
   labs(
@@ -333,11 +333,11 @@ ggplot(data = combined_data) +
   theme_minimal()
 ```
 
-We can also use the forecasts to determine the year and month that CO2 concentrations will surpass specified thresholds. In particular, we were interested in identifying when the CO2 is expected to be at 420 ppm and 500 ppm, respectively. Climate scientists have indicated that these thresholds are significant due to the associated impact to the global climate such as further global warming, extreme weather, ocean acidification, and other detrimental effects. The SARIMA model estimates that the CO2 concentration will reach 420 ppm for the first time by May 2023 and for the last time by November 2025. A 95% confidence interval indicates that first time at which this threshold will be reached may vary between May 2017 to May 2036 and the last time will vary between December 2018 and November 2039. The model estimates that CO2 concentration will reach 500 ppm for the first time by March 2053. The 95% confidence interval for this estimate varies between April 2040 and May 2078. The model estimates that CO2 concentration will reach 500 ppm for the last time by December 2053. The 95% confidence interval for this estimate varies between October 2041 and November 2080. Lastly, the model estimates that by 2100, the atmospheric CO2 concentration will reach 674 ppm. Confidence is low in all of these predictions due to the widening variance of the predictions over time. Despite the strong cyclical patterns forecasting this far out in time is an incredibly hard task to do accurately.
+We can also use the forecasts to determine the year and month that CO2 concentrations will surpass specified thresholds. In particular, we were interested in identifying when the CO2 is expected to be at 420 ppm and 500 ppm, respectively. Climate scientists have indicated that these thresholds are significant due to the associated impact to the global climate such as further global warming, extreme weather, ocean acidification, and other detrimental effects. The SARIMA model estimates that the CO2 concentration will reach 420 ppm for the first time at May 2023 and for the last time at November 2025. A 95% confidence interval indicates that first time at which this threshold will be reached may vary between May 2017 to May 2036 and the last time will vary between December 2018 and November 2039. The model estimates that CO2 concentration will reach 500 ppm for the first time at March 2053. The 95% confidence interval for this estimate varies between April 2040 and May 2078. The model estimates that CO2 concentration will reach 500 ppm for the last time at December 2053. The 95% confidence interval for this estimate varies between October 2041 and November 2080. Lastly, the model estimates that at 2100, the atmospheric CO2 concentration will reach 674 ppm. Confidence is low in all of these predictions due to the widening variance of the predictions over time. Despite the strong cyclical patterns forecasting this far out in time is an incredibly hard task to do accurately.
 
 ## Conclusions 
 
-- Implications 
+The primary questions posed at the beginning of this report were: How have the levels of atmospheric CO2 changed over time? And, is there an identifiable pattern that will persist into the future? The time series analysis conducted in this report addresses these questions. The levels of atmospheric CO2  have increased overtime and there is a seasonal and trend component that suggests the levels of atmospheric CO2 will continue to increase overtime at a relatively constant growth rate. It is important to understand that these conclusions are in the context of air samples taken at the Mauna Loa Observatory in Hawaii. To address this bias, it would be interesting to conduct the same analysis using data comprised of air samples from other land and sea stations around the world. Nevertheless, it is clear that there is a need for human intervention to decrease carbon dioxide emissions. Left unchecked carbon dioxide emissions will increase to a alarming point sometime between 2050 and 2100. 
 
 
 
