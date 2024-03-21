@@ -1,0 +1,305 @@
+---
+title: "Report from the Point of View of the Present"
+output: pdf_document
+date: "2024-03-11"
+---
+
+```{r load packages, message=FALSE, warning=FALSE}
+library(readr)
+library(dplyr)
+library(lubridate)
+library(tsibble)
+library(ggplot2)
+if(!"fpp3"%in%rownames(installed.packages())) {install.packages("fpp3")}
+library(fpp3)
+if(!"grwat"%in%rownames(installed.packages())) {install.packages("grwat")}
+library(grwat)
+if(!"dplyr"%in%rownames(installed.packages())) {install.packages("dplyr")}
+library(dplyr)
+```
+#(1 point) Task 0b: Introduction
+
+In this introduction, you can assume that your reader will have just read your 1997 report. In this introduction,
+very briefly pose the question that you are evaluating, and describe what (if anything) has changed in
+the data generating process between 1997 and the present.
+
+
+#(3 points) Task 1b: Create a modern data pipeline for Mona Loa CO2 data.
+
+The most current data is provided by the United States’ National Oceanic and Atmospheric Administration,
+on a data page [here]. Gather the most recent weekly data from this page. (A group that is interested in
+even more data management might choose to work with the hourly data.)
+Create a data pipeline that starts by reading from the appropriate URL, and ends by saving an object called
+co2_present that is a suitable time series object.
+Conduct the same EDA on this data. Describe how the Keeling Curve evolved from 1997 to the present,
+noting where the series seems to be following similar trends to the series that you “evaluated in 1997” and
+where the series seems to be following different trends. This EDA can use the same, or very similar tools
+and views as you provided in your 1997 report.
+
+```{r}
+weekly_co2_url <- "https://gml.noaa.gov/webdata/ccgg/trends/co2/co2_weekly_mlo.csv"
+
+content <- read_lines(weekly_co2_url, skip_empty_rows = TRUE)
+
+header_end_index <- max(grep("^#", content))
+
+co2_present <- read_csv(weekly_co2_url, skip = header_end_index, show_col_types = FALSE)
+
+co2_present <- co2_present %>%
+  mutate(date = make_date(year, month, day))
+
+co2_present <- as_tsibble(co2_present, index = date)
+
+co2_present <- co2_present[co2_present$average != -999.99, ]
+
+co2_present
+```
+
+
+```{r}
+ggplot(co2_present, aes(x = date, y = average)) + 
+  geom_line() + 
+  theme_minimal() +
+  labs(title = "Time Series of CO2 Levels", x = "Date", y = "CO2 Concentration")
+```
+The plot shows a clear upward trend, indicating that CO2 levels have been increasing over the given time period. The pattern also shows seasonal fluctuations within each year, where the CO2 concentration peaks and then drops slightly, before rising again. The overall trend, however, is an increase in CO2 levels.
+
+```{r}
+acf(co2_present$average, na.action = na.pass)
+
+```
+The plot shows a strong positive autocorrelation at all lags up to 35, and all are above the significance level, indicating a very persistent time series with a strong seasonal or cyclic pattern. This might suggest that the time series data of CO2 concentrations have a consistent pattern that repeats over time, with no significant decay in correlation as the lag increases.
+
+```{r}
+pacf(co2_present$average, na.action = na.pass)
+
+
+```
+The plot indicates that there is no almost no significant partial autocorrelation in the data at lags greater than zero. This could suggest that a simple autoregressive model may not be a good fit for the data.
+
+```{r}
+ggplot(co2_present, aes(x = average)) + 
+  geom_histogram(binwidth = 1, fill = 'blue', color = 'black') +
+  theme_minimal() +
+  labs(title = "Histogram of CO2 Levels", x = "CO2 Concentration", y = "Frequency")
+```
+The plot shows multuple peaks suggesting more of a multimodal distribution. This could imply that there are multiple common CO2 levels within the data, possibly reflecting different environmental conditions or measurement periods. The data appears to be right-skewed. 
+
+#(1 point) Task 2b: Compare linear model forecasts against realized CO2
+Descriptively compare realized atmospheric CO2 levels to those predicted by your forecast from a linear time
+model in 1997 (i.e. “Task 2a”). (You do not need to run any formal tests for this task.)
+
+#(1 point) Task 3b: Compare ARIMA models forecasts against realized CO2
+Descriptively compare realized atmospheric CO2 levels to those predicted by your forecast from the ARIMA
+model that you fitted in 1997 (i.e. “Task 3a”). Describe how the Keeling Curve evolved from 1997 to the
+present.
+
+#(3 points) Task 4b: Evaluate the performance of 1997 linear and ARIMA models
+In 1997 you made predictions about the first time that CO2 would cross 420 ppm. How close were your
+models to the truth?
+After reflecting on your performance on this threshold-prediction task, continue to use the weekly data to
+generate a month-average series from 1997 to the present, and compare the overall forecasting performance
+of your models from Parts 2a and 3b over the entire period. (You should conduct formal tests for this task.)
+
+```{r month data}
+
+co2_present <- read_csv(weekly_co2_url, skip = header_end_index, show_col_types = FALSE)
+
+co2_present <- co2_present[co2_present$average != -999.99, ]
+
+co2_monthly <- co2_present %>%
+  group_by(year, month) %>%
+  summarise(average = mean(average, na.rm = TRUE),
+            .groups = "drop")
+
+co2_monthly <- co2_monthly %>%
+  mutate(Month = yearmonth(make_date(year, month, day = 1))) %>%
+  select(-year, -month)  
+
+co2_monthly_present <- as_tsibble(co2_monthly, index = Month)
+
+co2_monthly_present
+scan_gaps(co2_monthly_present)
+co2_monthly_present_gap_filled <- co2_monthly_present |>
+  fill_gaps(average = 329.72)
+
+scan_gaps(co2_monthly_present_gap_filled)
+```
+We identified a gap in the data series on December, 1975. Given that it was the only gap in the series and the closest data point observed is on November 30, 1975, we have decided to fill the gap with November 30, 1975 data point. 
+
+#(4 points) Task 5b: Train best models on present data
+Seasonally adjust the weekly NOAA data, and split both seasonally-adjusted (SA) and non-seasonally adjusted
+(NSA) series into training and test sets, using the last two years of observations as the test sets.
+For both SA and NSA series, fit ARIMA models using all appropriate steps. Measure and discuss how your
+models perform in-sample and (psuedo-) out-of-sample, comparing candidate models and explaining your
+choice. In addition, fit a polynomial time-trend model to the seasonally-adjusted series and compare its
+performance to that of your ARIMA model.
+
+```{r STL}
+seasonal.plot <- co2_monthly_present_gap_filled |>
+  gg_subseries(average) +
+  labs(y = "CO2 Concentration (Millions)", x = "Month",
+       title = "Seasonal plot: CO2 Concentration in Mona Loa for 1975-2022")
+
+seasonal.plot
+```
+
+```{r Task 5b STL}
+STL.model <- co2_monthly_present_gap_filled |>
+  model(
+    STL(average ~ trend(window = 6) + season(window = "periodic"),
+    robust = TRUE))
+STL.model |>
+  components() |>
+  autoplot()
+```
+
+As we have observed in our EDA section, we believe the CO2 levels have both overall upward trend and very possible seasonal trend. We used STL decomposition to decompose the data into 3 components: 1) upward trend using 6 months window, 2) seasonal trend which is observed as yearly trend, and 3) remainder, which the mean is observed close to zero, and fluctuates around reasonably bounded variance. We will proceed with further investigation to check for stationary on the remainder. 
+
+```{r STL part 2}
+STL.model.resids <- components(STL.model) |>
+ACF(remainder) |>
+autoplot() + labs(title = "Residuals of multiplicative decomposition")
+
+STL.model.resids
+```
+
+```{r}
+Box.test(components(STL.model)$remainder, lag = 10, type = "Ljung-Box")
+```
+From the residual plots and the Box-Ljung test above, it looks like although the residuals of the decomposition are stationary, they do not appear to be completely white noise. This means that while the decomposition method eliminates the deterministic components from this specific time series, there are some correlation remains in the data. As a result, we moved on to fit our data using ARIMA models that separately optimize for AIC, AICc and BIC.
+
+```{r ARIMA}
+co2_monthly_present_gap_filled.train <- co2_monthly_present_gap_filled  |>
+  filter(year(Month) < 2022)
+
+co2_monthly_present_gap_filled.test <- co2_monthly_present_gap_filled  |>
+  filter(year(Month) >= 2022)
+
+models <- co2_monthly_present_gap_filled.train |>
+  model(aic = ARIMA(average ~ pdq(0:10,0:2,0:10)+PDQ(0:3,0:1,0:3, period=12), ic="aic", stepwise=F, greedy=F),
+  aicc = ARIMA(average ~ pdq(0:10,0:2,0:10)+PDQ(0:3,0:1,0:3, period=12), ic="aicc", stepwise=F, greedy=F),
+  bic = ARIMA(average ~ pdq(0:10,0:2,0:10)+PDQ(0:3,0:1,0:3, period=12), ic="bic", stepwise=F, greedy=F))
+
+models |>
+ augment() |>
+ ACF(.resid)|>
+ autoplot()
+```
+According to the above, the residuals appear to be close to white noise. There is no significant lags, but with some seasonal pattern that suggests we should run a statistical test on the residuals from the models to see if they are randomly distributed i.e. are white noise, which is what we want for a good model fit, or if they appear to have some serial correlation over time and violate the assumptions for a stationary time series fit. 
+
+```{r SARIMA models}
+models |>
+  pivot_longer(everything(), names_to = "Model name", values_to = "SARIMA Model")
+```
+
+```{r SARIMA model comparison}
+models |>
+  report()
+```
+
+As depicted above, there is no major difference in the underlying SARIMA model, all elected SARIMA(0,1,1)(2,1,3)[12] amongst the aic, aicc, and bic models. We have decided to use BIC model since it produced the minimum IC scores across the three metrics.
+```{r}
+SARIMA.model <- models |>
+  select(.model=bic)  
+SARIMA.model |> 
+  augment() |>
+  ggplot(aes(x = Month)) +
+  geom_line(aes(y = average, colour = "Data")) +
+  geom_line(aes(y = .fitted, colour = "Fitted")) +
+  labs(x = "Month", y = "CO2 Concentration (ppm)",
+       title = "Mona Loa CO2 Concentration 1975-2022 (SARIMA model)")
+```
+
+
+
+```{r SARIMA model selection}
+SARIMA.model |>
+  gg_tsresiduals()
+```
+```{r SARIMA Box Ljung test}
+models |>
+  augment() |>
+  filter(.model=="bic") |>
+  select(.resid) %>%
+  as.ts() %>%
+  Box.test(., lag = 10, type = "Ljung-Box")
+```
+From the residual plots and the Box-Ljung test above, it looks like although the residuals of the SARIMA model are stationary and appear to be white noise. As a result, we decided to use the SARIMA model to forecast using our test data.
+
+```{r forecasting using SARIMA}
+SARIMA.forecast <- SARIMA.model |>
+  forecast(co2_monthly_present_gap_filled.test) 
+
+SARIMA.forecast  |>
+  autoplot() +
+  autolayer(co2_monthly_present_gap_filled.test) +
+  geom_line(data=SARIMA.model |> augment() |>
+  filter(year(Month) > 2020), aes(Month, .fitted)) +
+  labs(title = "Mona Loa CO2 Concentration Forecast (SARIMA model)", x = "Month", y = "CO2 Concentration (ppm)")
+
+sarima.accuracy <- accuracy(SARIMA.forecast, co2_monthly_present_gap_filled.test)
+
+```
+
+```{r polynomial time-trend model}
+polynomial_time_trend.model <- co2_monthly_present_gap_filled.train |>
+ model(trend_model = TSLM(average ~ trend() + I(trend()^2) + season()))
+
+polynomial_time_trend.model |>
+  augment() |>
+  ggplot(aes(x = Month)) +
+  geom_line(aes(y = average, colour = "Data")) +
+  geom_line(aes(y = .fitted, colour = "Fitted")) +
+  labs(x = "Month", y = "CO2 Concentration (ppm)",
+       title = "Mona Loa CO2 Concentration 1975-2022 (Polynomial time trend model)")
+```
+```{r polynomial time-trend model summary}
+polynomial_time_trend.model |>
+report()
+```
+
+```{r polynomial time-trend model forecast}
+poly.forecast <- polynomial_time_trend.model |>
+  forecast(co2_monthly_present_gap_filled.test)
+
+poly.forecast  |>
+  autoplot() +
+  autolayer(co2_monthly_present_gap_filled.test) +
+  geom_line(data=polynomial_time_trend.model |> augment() |>
+  filter(year(Month) > 2020), aes(Month, .fitted)) +
+  labs(title = "Mona Loa CO2 Concentration Forecast (Polynomial time trend model)", x = "Month", y = "CO2 Concentration (ppm)")
+
+poly.accuracy <- accuracy(poly.forecast, co2_monthly_present_gap_filled.test)
+```
+```{r accuracy table}
+accuracy_table <- rbind(sarima.accuracy, poly.accuracy)
+accuracy_table
+```
+
+From the above accuracy table, it is pretty evident that SARIMA model has outperformed polynomial time-trend model in terms of minimize the forecast error in the training dataset.
+
+#(3 points) Task Part 6b: How bad could it get?
+With the non-seasonally adjusted data series, generate predictions for when atmospheric CO2 is expected
+to be at 420 ppm and 500 ppm levels for the first and final times (consider prediction intervals as well as
+point estimates in your answer). Generate a prediction for atmospheric CO2 levels in the year 2122. How
+confident are you that these will be accurate predictions?
+
+```{r forecast out to year 2122}
+forecase.size = (2122-2020)*12
+SARIMA.forecast.2122 <- SARIMA.model |>
+  forecast(h=forecase.size) 
+
+SARIMA.forecast.2122  |>
+  autoplot() +
+  geom_line(data=SARIMA.model |> augment() |>
+  filter(year(Month) > 2020), aes(Month, .fitted)) +
+  geom_hline(yintercept=500, linetype='longdash', col = 'red')+
+  annotate("text", x = yearmonth("2040-01"), y = 500, label = "500 ppm", vjust = -0.5) +
+  geom_hline(yintercept=420, linetype='longdash', col = 'orange')+
+  annotate("text", x = yearmonth("2080-01"), y = 420, label = "420 ppm", vjust = -0.5) +
+  labs(title = "Mona Loa CO2 Concentration Forecast (SARIMA model)", x = "Month", y = "CO2 Concentration (ppm)")
+
+```
+We can see that using our SARIMA model the forecasts also have a trend and seasonal movement and fluctuations increase overtime. But these forecasts will get very inaccurate as we move beyond at best 5 year forecasts of the model, as the confidence intervals of the model prediction begin to open up very widely due to the inherent model restriction and the unpredictability of the future. We can be pretty confident to say that we will hit 420 ppm CO2 level in 2023-2025, less confident about 500 ppm CO2 level as the model suggest it can be as early as 2045 or as late as 2060 or beyond.
+
