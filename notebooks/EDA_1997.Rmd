@@ -109,17 +109,16 @@ pacf <- ggPacf(annual_growth$annualized_growth_rate) +
 ```
 - Growth rates follow a white noise process i.e., shows no autocorrelation 
 
-## Next steps 
+## Seasonal Decompositon
 
-- How has the seasonal cycle of CO2 concentrations changed between 1958 and 1997? Is there an identifiable pattern that will persist into the future?
-- Is atmospheric CO2 concentration predictable? 
+```{r seasonal decomp}
+STL.model <- data |>
+  model(
+    STL(value ~ trend(window = 6) + season(window = "periodic"),
+    robust = TRUE))
+STL.model |>
+  components() |>
+  autoplot()
+```
 
-De-trending? Seasonal adjustment? Differencing? 
 
-KSPSS test 
-
-
-To-do:
-
-- Write up first sections 
-- Task 2a 
