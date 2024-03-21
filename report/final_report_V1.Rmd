@@ -188,17 +188,20 @@ Due the strong presence of seasonality in the data, the next set of models are s
 SARIMA(p, d, q)(P, D, Q)_s
 \end{align}
 
-These models include moving average (MA) terms, autoregressive (AR) terms, and differencing (D) terms at non-seasonal and seasonal lags. This allows the model to more accurately capture and account for the seasonality present in the data. To help determine the seasonal MA, AR, and D terms we took a first difference of the data and re-plotted Figure 1 with the differenced data. Figure 2 shows this plot. The plot indicates that after one difference the data is near stationary suggesting that the differencing term should be 1. We performed ADF and KPSS test to confirm stationarity. Moreover, the PACF shows a large spike followed by oscillations between positive and negative correlations which appear to weaken as the lag value increases. This indicates the presence of a higher order MA term. The plots do not appear to support the presence of a AR term. 
+These models include moving average (MA) terms, autoregressive (AR) terms, and differencing (D) terms at non-seasonal and seasonal lags. This allows the model to more accurately capture and account for the seasonality present in the data. To help determine the seasonal MA, AR, and D terms we took a first difference of the data and re-plotted Figure 1 with the differenced data. Figure 3 shows this plot. The plot indicates that after one difference the data is near stationary suggesting that the differencing term should be 1. We performed ADF and KPSS test to confirm stationarity. Moreover, the PACF shows a large spike followed by oscillations between positive and negative correlations which appear to weaken as the lag value increases. This indicates the presence of a higher order MA term. The plots do not appear to support the presence of a AR term. 
 
 ```{r time series plot differenced, echo=FALSE, fig.width = 10, fig.height = 3}
 data_diff <- data
-data_diff$value_diff <- difference(data_diff$value)
+data_diff$value_diff <- difference(data_diff$value) 
+
+data_diff <- data_diff %>% 
+  na.omit()
 
 # Time series data 
 time_series <- ggplot(data_diff, aes(x=index, y=value_diff)) +
   geom_line() +
   ylab("CO2 Concentration") +
-  xlab("Year-Month") +
+  xlab("Time") +
   ggtitle("CO2 Concentration 1959 - 1997")
 
 # ACF 
@@ -209,10 +212,10 @@ acf <- ggAcf(data_diff$value_diff, lag.max = 50) +
 pacf <- ggPacf(data_diff$value_diff, lag.max = 50) +
   ggtitle("Partial ACF")
 
-time_series + acf + pacf + plot_annotation(expression(italic('Figure 2. Time Series, ACF, and PACF After First Difference')), theme=theme(plot.title=element_text(hjust=0.5)))
+time_series + acf + pacf + plot_annotation(expression(italic('Figure 3. Time Series, ACF, and PACF After First Difference')), theme=theme(plot.title=element_text(hjust=0.5)))
 ```
 
-Based on the assessment of Figure 2, we fit three SARIMA models of the form: 
+Based on the assessment of Figure 3, we fit three SARIMA models of the form: 
 
 \begin{align}
 SARIMA(0, 1, 1)(0, 1, 1)_{12}
@@ -224,67 +227,73 @@ SARIMA(3, 1, 0)(3, 1, 0)_{12}
 SARIMA(0, 1, 1)(1, 1, 2)_{12}
 \end{align}
 
-The final model was selected using the BIC scores with the ultimate winner being the $SARIMA(0,1,1)(0,1,1)_{12}$ model with a BIC value of 194.7. BIC was chosen due to its inherent penalty on adding additional terms leading to a well fitted and simpler model. Finding the ideal model is done through grid search of various parameters as we employed three simultaneous searches to see the most variety of different model specialties. All searches included non-zero difference terms based on the our EDA while one model focused on AR terms, another MA terms and one finally on both at the same time. To further assess the appropriateness of this model, we looked at a residual ACF plot which closely resembles that of a white noise process with lags rarely falling outside of the 95% confidence interval around 0 correlation. This supports the use of the SARIMA model to model the CO2 dataset. 
+The final model was selected using the BIC scores with the ultimate winner being the $SARIMA(0,1,1)(0,1,1)_{12}$ model with a BIC value of 194.7. BIC was chosen due to its inherent penalty on adding additional terms leading to a well fitted and simpler model. Finding the ideal model is done through grid search of various parameters as we employed three simultaneous searches to see the most variety of different model specialties. All searches included non-zero difference terms based on the our EDA while one model focused on AR terms, another MA terms and one finally on both at the same time. To further assess the appropriateness of this model, we looked at a residual ACF plot which closely resembles that of a white noise process with lags rarely falling outside of the 95% confidence interval around 0 correlation. We also conducted a Box-Ljung test which had a p-value greater than 0.05, therefore the residuals do not exhibit significant autocorrelation giving greater confidence that the SARIMA model found is appropriate to model the CO2 dataset. 
 
-```{r ARIMA Modeling, echo = FALSE}
-# # model_ma.bic<-data %>%
-# # model(ARIMA(value ~ 1 + pdq(0,0:1,0:3) + PDQ(0,0:1,0:3), ic="bic", stepwise=F, greedy=F,
-# #             order_constraint = p + q + P + Q <= 10))
+**maybe add residual acf?**
+
+```{r ARIMA Modeling, echo = FALSE, warning = FALSE, message = FALSE}
+model_ma.bic<-data %>%
+model(ARIMA(value ~ 1 + pdq(0,0:1,0:3) + PDQ(0,0:1,0:3), ic="bic", stepwise=F, greedy=F,
+            order_constraint = p + q + P + Q <= 10))
+
+# model_ar.bic<-data %>%
+# model(ARIMA(value ~ 1 + pdq(0:3,0:1,0) + PDQ(0:3,0:1,0), ic="bic", stepwise=F, greedy=F,
+#            order_constraint = p + q + P + Q <= 10))
 # 
-# # model_ar.bic<-data %>%
-# # model(ARIMA(value ~ 1 + pdq(0:3,0:1,0) + PDQ(0:3,0:1,0), ic="bic", stepwise=F, greedy=F,
-# #             order_constraint = p + q + P + Q <= 10))
-# # 
-# # model_full.bic<-data %>%
-# # model(ARIMA(value ~ 1 + pdq(0:3,0:1,0:3) + PDQ(0:3,0:1,0:3), ic="bic", stepwise=F, greedy=F,
-# #             order_constraint = p + q + P + Q <= 10))
-# # 
-# # # Report model summaries 
-# # model_ma.bic %>% # Best BIC model to use for forecasting 
-# # report()
-# # 
-# # model_ar.bic %>%
-# # report()
-# # 
-# # model_full.bic %>%
-# # report()
+# model_full.bic<-data %>%
+# model(ARIMA(value ~ 1 + pdq(0:3,0:1,0:3) + PDQ(0:3,0:1,0:3), ic="bic", stepwise=F, greedy=F,
+#             order_constraint = p + q + P + Q <= 10))
+
+#Report model summaries
+# model_ma.bic %>% # Best BIC model to use for forecasting
+#   report()
+# 
+# model_ar.bic %>%
+#   report()
+# 
+# model_full.bic %>%
+#   report()
 ```
 
 ### *Forecasts*
 
+We used the models from equations 3 and 6 to generate forecasts of the expected atmospheric CO2 concentrations over the next 20 years. These forecasts are shown in Figure 4 below.
+
+**insert plot**
+
+The forecasts generated by each model are similar in nature and both support that the trend and seasonal patterns present in the CO2 data will persist into the future. 
+
+We can also use the forecasts to determine the year and month that CO2 concentrations will surpass specified thresholds. In particular, we were interested in identifying when the CO2 is expected to be at 420 ppm and 500 ppm, respectively. Climate scientists have indicated that these thresholds are significant due to the associated impact to the global climate such as further global warming, extreme weather, ocean acidification, and other detrimental effects. The SARIMA model estimates that the CO2 concentration will reach 420 ppm for the first time by May 2023 and for the last time by November 2025. A 95% confidence interval indicates that first time at which this threshold will be reached may vary between May 2017 to May 2036 and the last time will vary between December 2018 and November 2039. The model estimates that CO2 concentration will reach 500 ppm for the first time by March 2053. The 95% confidence interval for this estimate varies between April 2040 and May 2078. The model estimates that CO2 concentration will reach 500 ppm for the last time by December 2053. The 95% confidence interval for this estimate varies between October 2041 and November 2080. Lastly, the model estimates that by 2100, the atmospheric CO2 concentration will reach 674 ppm. Confidence is low in all of these predictions due to the widening variance of the predictions over time. Despite the strong cyclical patterns forecasting this far out in time is an incredibly hard task to do accurately.
+
 ```{r polynomial forecasts, echo = FALSE, results = 'hide'}
-# index <- seq(from = ymd("1998-01-01"), to = ymd("2020-12-01"), by = "1 month")
-# 
-# ext_data <- data.frame(index = index) %>% 
-#   as_tsibble(index=index) %>% 
-#   mutate(month = as.factor(month(index))) 
-# 
-# ext_data$month_since_start <- seq(max(data$month_since_start)+1,max(data$month_since_start)+(23*12))
-# 
-# forecast <- data.frame(predict = predict(lm_seasonal_model, newdata = ext_data))
-# 
-# forecast$index <- ext_data$index
-# 
-# ggplot(forecast, aes(x=index, y=predict)) +
-#   geom_line() +
-#   ylab("CO2 Concentration") +
-#   xlab("Year-Month") +
-#   ggtitle("CO2 Concentration Forecast 1998 - 2020")
+index <- seq(from = ymd("1998-01-01"), to = ymd("2020-12-01"), by = "1 month")
+
+ext_data <- data.frame(index = index) %>%
+  as_tsibble(index=index) %>%
+  mutate(month = as.factor(month(index)))
+
+ext_data$month_since_start <- seq(max(data$month_since_start)+1,max(data$month_since_start)+(23*12))
+
+forecast <- data.frame(predict = predict(lm_seasonal_model, newdata = ext_data))
+
+forecast$index <- ext_data$index
+
+ggplot(forecast, aes(x=index, y=predict)) +
+  geom_line() +
+  ylab("CO2 Concentration") +
+  xlab("Year-Month") +
+  ggtitle("CO2 Concentration Forecast 1998 - 2020")
 ```
 
 ```{r ARIMA forcast 2022, echo=FALSE}
-# model_ma.forecasts<-forecast(model_ma.bic, h=25*12)
-# 
-# autoplot(model_ma.forecasts) +
-#   autolayer(data, colour = "black", .vars = value) +
-#   xlab("Year") +
-#   ylab("Value") +
-#   ggtitle("ARIMA Forecast for Next 25 Years")
-```
+model_ma.forecasts<-forecast(model_ma.bic, h=25*12)
 
-- Forecasts 
-- Predictions for when CO2 is expected to be at 420 ppm and 500 ppm 
-- Interpretation/evaluation? 
+autoplot(model_ma.forecasts) +
+  autolayer(data, colour = "black", .vars = value) +
+  xlab("Year") +
+  ylab("Value") +
+  ggtitle("ARIMA Forecast for Next 25 Years")
+```
 
 ## Conclusions 
 
