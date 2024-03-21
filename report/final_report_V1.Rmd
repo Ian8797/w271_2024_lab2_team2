@@ -74,17 +74,18 @@ Since the time series showed a clear positive linear trend, we also conducted ex
 ```{r growth rate plots, echo=FALSE, fig.width = 10, fig.height = 3}
 data <- data %>% mutate(month = as.factor(month(index)))
 
-annual_growth <- data %>% filter(month == 1) %>%
-  mutate(co2_diff = value - lag(value),
-         growth_rate = co2_diff / lag(value) ) %>% 
+annual_growth <- data %>%
+  mutate(growth_rate = difference(value, lag = 12)/value ) %>%
+  index_by(year = year(index)) |>
+  summarise(growth_rate = mean(growth_rate)) |>
   na.omit()
 
 # Time series data 
-time_series <- ggplot(annual_growth, aes(x=index, y=growth_rate)) +
+time_series <- ggplot(annual_growth, aes(x=year, y=growth_rate)) +
   geom_line() +
   ylab("Annualized Growth Rate") +
   xlab("Time") +
-  ggtitle("Average CO2 Growth Rate 1959 - 1997")
+  ggtitle("Mean CO2 Growth 1959 - 1997")
 
 # ACF 
 acf <- ggAcf(annual_growth$growth_rate) +
