@@ -1,6 +1,8 @@
 ---
-title: "W271 Group Lab 2 Team 2"
-author: "Katt Painter, Bo He, Akanksha Chattopadhyay, Ian Vaimberg"
+title: | 
+  | \vspace{-2cm} \large W271 Group Lab 2 Team 2
+author: |
+  | \normalsize Katt Painter, Bo He, Akanksha Chattopadhyay, Ian Vaimberg
 output: 'pdf_document'  
 ---
 
@@ -86,7 +88,7 @@ y_t=t+\epsilon_t
 y_t=t+t^2+\epsilon_t
 \end{align}
 \begin{align}
-y_t=t+d_{2, t}+d_{3, t}+...+d_{11, t}+d_{12, t}+\epsilon_t
+y_t=t+t^2+d_{2, t}+d_{3, t}+...+d_{11, t}+d_{12, t}+\epsilon_t
 \end{align}
 where $t$ is the time index (i.e., year-month) represented as an integer and $d$ is a dummy variable representing each month. For example $d_{2}$ would correspond to the month of February, $d_{3}$ would correspond to the month of March, and so on. 
 
@@ -103,9 +105,10 @@ lm_seasonal_model <- lm(value ~ month_since_start  + I(month_since_start^2) + mo
 ```
 
 ```{r stargazer linear models, results = "asis", fig.width = 10, fig.height = 3, echo=FALSE, fig.pos="H"}
-star <- stargazer(
+stargazer(
     lm_model, quad_model, lm_seasonal_model,
     type = "latex",
+    float = FALSE, 
     title = "Estimated Linear Models",
     dep.var.caption  = "Response: Atmospheric CO2 Concentration",
     dep.var.labels   = "",
@@ -176,35 +179,76 @@ poly_resid_plot <- ggplot(poly_residual_data, aes(x = predicted_values, y = resi
 
 ### *ARIMA Models*
 
-- Functional form 
-- Differencing required 
+Due the strong presence of seasonality in the data, the next set of models are seasonal autoregressive integrated moving average models (SARIMA). The general notation (4) used to express these models is stated below as well as the short hand notation (5). 
 
-```{r ARIMA Modeling, echo = FALSE}
-# model_ma.bic<-data %>%
-# model(ARIMA(value ~ 1 + pdq(0,0:1,0:3) + PDQ(0,0:1,0:3), ic="bic", stepwise=F, greedy=F,
-#             order_constraint = p + q + P + Q <= 10))
-# 
-# model_ar.bic<-data %>%
-# model(ARIMA(value ~ 1 + pdq(0:3,0:1,0) + PDQ(0:3,0:1,0), ic="bic", stepwise=F, greedy=F,
-#             order_constraint = p + q + P + Q <= 10))
-# 
-# model_full.bic<-data %>%
-# model(ARIMA(value ~ 1 + pdq(0:3,0:1,0:3) + PDQ(0:3,0:1,0:3), ic="bic", stepwise=F, greedy=F,
-#             order_constraint = p + q + P + Q <= 10))
-# 
-# # Report model summaries 
-# model_ma.bic %>% # Best BIC model to use for forecasting 
-# report()
-# 
-# model_ar.bic %>%
-# report()
-# 
-# model_full.bic %>%
-# report()
+\begin{align}
+\phi(B)\Phi(B^s)(1-B)^d(1-B^s)^Dx_t=\mu+\theta(B)\Theta(B^s)\epsilon_t
+\end{align}
+\begin{align}
+SARIMA(p, d, q)(P, D, Q)_s
+\end{align}
+
+These models include moving average (MA) terms, autoregressive (AR) terms, and differencing (D) terms at non-seasonal and seasonal lags. This allows the model to more accurately capture and account for the seasonality present in the data. To help determine the seasonal MA, AR, and D terms we took a first difference of the data and re-plotted Figure 1 with the differenced data. Figure 2 shows this plot. The plot indicates that after one difference the data is near stationary suggesting that the differencing term should be 1. We performed ADF and KPSS test to confirm stationarity. Moreover, the PACF shows a large spike followed by oscillations between positive and negative correlations which appear to weaken as the lag value increases. This indicates the presence of a higher order MA term. The plots do not appear to support the presence of a AR term. 
+
+```{r time series plot differenced, echo=FALSE, fig.width = 10, fig.height = 3}
+data_diff <- data
+data_diff$value_diff <- difference(data_diff$value)
+
+# Time series data 
+time_series <- ggplot(data_diff, aes(x=index, y=value_diff)) +
+  geom_line() +
+  ylab("CO2 Concentration") +
+  xlab("Year-Month") +
+  ggtitle("CO2 Concentration 1959 - 1997")
+
+# ACF 
+acf <- ggAcf(data_diff$value_diff, lag.max = 50) +
+  ggtitle("ACF")
+
+# PACF
+pacf <- ggPacf(data_diff$value_diff, lag.max = 50) +
+  ggtitle("Partial ACF")
+
+time_series + acf + pacf + plot_annotation(expression(italic('Figure 2. Time Series, ACF, and PACF After First Difference')), theme=theme(plot.title=element_text(hjust=0.5)))
 ```
 
-- Functional form 
-- Results 
+Based on the assessment of Figure 2, we fit three SARIMA models of the form: 
+
+\begin{align}
+SARIMA(0, 1, 1)(0, 1, 1)_{12}
+\end{align}
+\begin{align}
+SARIMA(3, 1, 0)(3, 1, 0)_{12}
+\end{align}
+\begin{align}
+SARIMA(0, 1, 1)(1, 1, 2)_{12}
+\end{align}
+
+The final model was selected using the BIC scores with the ultimate winner being the $SARIMA(0,1,1)(0,1,1)_{12}$ model with a BIC value of 194.7. BIC was chosen due to its inherent penalty on adding additional terms leading to a well fitted and simpler model. Finding the ideal model is done through grid search of various parameters as we employed three simultaneous searches to see the most variety of different model specialties. All searches included non-zero difference terms based on the our EDA while one model focused on AR terms, another MA terms and one finally on both at the same time. To further assess the appropriateness of this model, we looked at a residual ACF plot which closely resembles that of a white noise process with lags rarely falling outside of the 95% confidence interval around 0 correlation. This supports the use of the SARIMA model to model the CO2 dataset. 
+
+```{r ARIMA Modeling, echo = FALSE}
+# # model_ma.bic<-data %>%
+# # model(ARIMA(value ~ 1 + pdq(0,0:1,0:3) + PDQ(0,0:1,0:3), ic="bic", stepwise=F, greedy=F,
+# #             order_constraint = p + q + P + Q <= 10))
+# 
+# # model_ar.bic<-data %>%
+# # model(ARIMA(value ~ 1 + pdq(0:3,0:1,0) + PDQ(0:3,0:1,0), ic="bic", stepwise=F, greedy=F,
+# #             order_constraint = p + q + P + Q <= 10))
+# # 
+# # model_full.bic<-data %>%
+# # model(ARIMA(value ~ 1 + pdq(0:3,0:1,0:3) + PDQ(0:3,0:1,0:3), ic="bic", stepwise=F, greedy=F,
+# #             order_constraint = p + q + P + Q <= 10))
+# # 
+# # # Report model summaries 
+# # model_ma.bic %>% # Best BIC model to use for forecasting 
+# # report()
+# # 
+# # model_ar.bic %>%
+# # report()
+# # 
+# # model_full.bic %>%
+# # report()
+```
 
 ### *Forecasts*
 
