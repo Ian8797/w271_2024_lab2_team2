@@ -125,15 +125,7 @@ co2_monthly_present_gap_filled <- co2_monthly_present |>
 
 scan_gaps(co2_monthly_present_gap_filled)
 ```
-We identified a gap in the data series on December, 1975. Given that it was the only gap in the series and the closest data point observed is on November 30, 1975, we have decided to fill the gap with November 30, 1975 data point. 
-
-#(4 points) Task 5b: Train best models on present data
-Seasonally adjust the weekly NOAA data, and split both seasonally-adjusted (SA) and non-seasonally adjusted
-(NSA) series into training and test sets, using the last two years of observations as the test sets.
-For both SA and NSA series, fit ARIMA models using all appropriate steps. Measure and discuss how your
-models perform in-sample and (psuedo-) out-of-sample, comparing candidate models and explaining your
-choice. In addition, fit a polynomial time-trend model to the seasonally-adjusted series and compare its
-performance to that of your ARIMA model.
+We identified a gap in the data series on December, 1975. Given that it was the only gap in the series and the closest data point observed is on November 30, 1975, we have decided to fill the gap with November 30, 1975 data point before we start modeling using STL and ARIMA. 
 
 ```{r STL}
 seasonal.plot <- co2_monthly_present_gap_filled |>

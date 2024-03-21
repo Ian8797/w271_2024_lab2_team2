@@ -5,10 +5,6 @@ date: "2024-03-18"
 output: 'pdf_document'  
 ---
 
-```{r,echo=FALSE}
-install.packages("blsR")
-```
-
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 library(tidyverse)
@@ -293,17 +289,6 @@ co2_monthly <- co2_present %>%
   summarise(average = mean(average, na.rm = TRUE),
             .groups = "drop")
 
-co2_monthly <- co2_monthly %>%
-  mutate(Month = yearmonth(make_date(year, month, day = 1))) %>%
-  select(-year, -month)  
-
-co2_monthly_present <- as_tsibble(co2_monthly, index = Month)
-
-co2_monthly_present_gap_filled <- co2_monthly_present |>
-  fill_gaps(average = 329.72)
-
-scan_gaps(co2_monthly_present_gap_filled)
-
 ```
 
 #(1 point) Task 3b: Compare ARIMA models forecasts against realized CO2
@@ -319,9 +304,20 @@ generate a month-average series from 1997 to the present, and compare the overal
 of your models from Parts 2a and 3b over the entire period. (You should conduct formal tests for this task.)
 
 ###Bo Edits starts here
-We identified a gap in the data series on December, 1975. Given that it was the only gap in the series and the closest data point observed is on November 30, 1975, we have decided to fill the gap with November 30, 1975 data point before we start modeling using STL and ARIMA. 
+```{r Gap filling, echo = FALSE, results='hide', warning=FALSE, include=FALSE}
+co2_monthly <- co2_monthly %>%
+  mutate(Month = yearmonth(make_date(year, month, day = 1))) %>%
+  select(-year, -month)  
 
-```{r STL, echo = FALSE}
+co2_monthly_present <- as_tsibble(co2_monthly, index = Month)
+
+co2_monthly_present_gap_filled <- co2_monthly_present |>
+  fill_gaps(average = 329.72)
+
+scan_gaps(co2_monthly_present_gap_filled)
+```
+
+```{r STL, echo = FALSE, results='hide', warning=FALSE, include=FALSE}
 seasonal.plot <- co2_monthly_present_gap_filled |>
   gg_subseries(average) +
   labs(y = "CO2 Concentration (Millions)", x = "Month",
@@ -329,9 +325,8 @@ seasonal.plot <- co2_monthly_present_gap_filled |>
 
 seasonal.plot
 ```
-
-
-```{r Task 5b STL, echo = FALSE}
+As we have observed in our EDA section and observations from 1997 report, we believe the CO2 levels have both overall upward trend and very possible seasonal trend. We used STL decomposition to decompose the data into 3 components: 1) upward trend using 6 months window, 2) seasonal trend which is observed as yearly trend, and 3) remainder, which the mean is observed close to zero, and fluctuates around reasonably bounded variance. We will proceed with further investigation to check for stationary on the remainder. 
+```{r Task 5b STL, echo = FALSE, warning=FALSE}
 STL.model <- co2_monthly_present_gap_filled |>
   model(
     STL(average ~ trend(window = 6) + season(window = "periodic"),
@@ -341,20 +336,19 @@ STL.model |>
   autoplot()
 ```
 
-As we have observed in our EDA section, we believe the CO2 levels have both overall upward trend and very possible seasonal trend. We used STL decomposition to decompose the data into 3 components: 1) upward trend using 6 months window, 2) seasonal trend which is observed as yearly trend, and 3) remainder, which the mean is observed close to zero, and fluctuates around reasonably bounded variance. We will proceed with further investigation to check for stationary on the remainder. 
-
-```{r STL part 2, echo = FALSE}
+```{r STL part 2, echo = FALSE, warning=FALSE, include=FALSE}
 STL.model.resids <- components(STL.model) |>
 ACF(remainder) |>
 autoplot() + labs(title = "Residuals of multiplicative decomposition")
 
 STL.model.resids
 ```
-```{r Box Test STL, echo = FALSE}
+
+```{r Box Test STL, echo = FALSE,  warning=FALSE, include=FALSE}
 Box.test(components(STL.model)$remainder, lag = 10, type = "Ljung-Box")
 ```
-From the residual plots and the Box-Ljung test above, it looks like although the residuals of the decomposition are stationary, they do not appear to be completely white noise. This means that while the decomposition method eliminates the deterministic components from this specific time series, there are some correlation remains in the data. As a result, we moved on to fit our data using ARIMA models that separately optimize for AIC, AICc and BIC.
-```{r ARIMA, echo = FALSE}
+From the residual plots and the Box-Ljung test results in p-value of 0.04 < 0.05, although the residuals of the decomposition appeared to be stationary, they do not appear to be completely white noise. This means that while the decomposition method eliminates the deterministic components from this specific time series, there are some correlation remains in the data. Combined with the knowledge that we learned from 1997 report, we decided to fit our data using SARIMA and polynomial time models with our new data.
+```{r ARIMA, echo = FALSE,  warning=FALSE,  warning=FALSE, include=FALSE}
 co2_monthly_present_gap_filled.train <- co2_monthly_present_gap_filled  |>
   filter(year(Month) < 2022)
 
@@ -365,24 +359,28 @@ models <- co2_monthly_present_gap_filled.train |>
   model(aic = ARIMA(average ~ pdq(0:10,0:2,0:10)+PDQ(0:3,0:1,0:3, period=12), ic="aic", stepwise=F, greedy=F),
   aicc = ARIMA(average ~ pdq(0:10,0:2,0:10)+PDQ(0:3,0:1,0:3, period=12), ic="aicc", stepwise=F, greedy=F),
   bic = ARIMA(average ~ pdq(0:10,0:2,0:10)+PDQ(0:3,0:1,0:3, period=12), ic="bic", stepwise=F, greedy=F))
+```
 
+Prior to model building, we have divided up our data to use data points prior to 2022 as our training dataset, and post 2022 as our testing dataset. Then, we start fitting SARIMA and polynomial time models using our training data and test the accuracy using the testing data.
+
+```{r SARIMA residuals, echo = FALSE, warning=FALSE, include=FALSE}
 models |>
  augment() |>
  ACF(.resid)|>
  autoplot()
 ```
-According to the above, the residuals appear to be close to white noise. There is no significant lags, but with some seasonal pattern that suggests we should run a statistical test on the residuals from the models to see if they are randomly distributed i.e. are white noise, which is what we want for a good model fit, or if they appear to have some serial correlation over time and violate the assumptions for a stationary time series fit.
-```{r SARIMA models, echo = FALSE}
+
+```{r SARIMA models, warning=FALSE, include=FALSE}
 models |>
   pivot_longer(everything(), names_to = "Model name", values_to = "SARIMA Model")
 ```
-```{r SARIMA model comparison, echo = FALSE}
+
+```{r SARIMA model comparison,  warning=FALSE, include=FALSE}
 models |>
   report()
 ```
-As depicted above, we have decided to use BIC model since it produced the minimum IC scores across the three metrics.
 
-```{r SARIMA model selection 1, echo = FALSE}
+```{r SARIMA model selection 1, echo = FALSE,  warning=FALSE, include=FALSE}
 SARIMA.model <- models |>
   select(.model=bic)  
 SARIMA.model |> 
@@ -393,11 +391,15 @@ SARIMA.model |>
   labs(x = "Month", y = "CO2 Concentration (ppm)",
        title = "Mona Loa CO2 Concentration 1975-2022 (SARIMA model)")
 ```
-```{r SARIMA model selection 2, echo = FALSE}
+### *SARIMA Model*
+```{r SARIMA model selection 2, warning=FALSE, echo = FALSE}
 SARIMA.model |>
-  gg_tsresiduals()
+  gg_tsresiduals() +
+  labs(title = "SARIMA model residuals")
 ```
-```{r SARIMA Box Ljung test, echo = FALSE}
+According to the above, the residuals of SARIMA model appear to be close to white noise. There is no significant lags, but with some seasonal pattern that suggests we should run a statistical test on the residuals from the models to see if they are randomly distributed i.e. are white noise, which is what we want for a good model fit, or if they appear to have some serial correlation over time and violate the assumptions for a stationary time series fit. And the Box-Ljung test result p-value of 0.53 > 0.05, it looks like the residuals of the SARIMA model are stationary and appeared to be white noise. As a result, we decided to use the SARIMA model to forecast using our test data.
+
+```{r SARIMA Box Ljung test, echo = FALSE,  warning=FALSE, include=FALSE}
 models |>
   augment() |>
   filter(.model=="bic") |>
@@ -405,24 +407,23 @@ models |>
   as.ts() %>%
   Box.test(., lag = 10, type = "Ljung-Box")
 ```
-From the residual plots and the Box-Ljung test above, it looks like although the residuals of the SARIMA model are stationary and appear to be white noise. As a result, we decided to use the SARIMA model to forecast using our test data.
 
-```{r forecasting using SARIMA, echo = FALSE}
+```{r forecasting using SARIMA, echo = FALSE,  warning=FALSE, include=FALSE}
 SARIMA.forecast <- SARIMA.model |>
   forecast(co2_monthly_present_gap_filled.test) 
 
-SARIMA.forecast  |>
+SARIMA.plot <- SARIMA.forecast  |>
   autoplot() +
   autolayer(co2_monthly_present_gap_filled.test) +
   geom_line(data=SARIMA.model |> augment() |>
   filter(year(Month) > 2020), aes(Month, .fitted)) +
-  labs(title = "Mona Loa CO2 Concentration Forecast (SARIMA model)", x = "Month", y = "CO2 Concentration (ppm)")
+  labs(title = "SARIMA model", x = "Month", y = "CO2 Concentration (ppm)")
 
 sarima.accuracy <- accuracy(SARIMA.forecast, co2_monthly_present_gap_filled.test)
 
 ```
 
-```{r polynomial time-trend model, echo = FALSE}
+```{r polynomial time-trend model, echo = FALSE, fig.show='hide, warning=FALSE', include=FALSE}
 polynomial_time_trend.model <- co2_monthly_present_gap_filled.train |>
  model(trend_model = TSLM(average ~ trend() + I(trend()^2) + season()))
 
@@ -434,34 +435,39 @@ polynomial_time_trend.model |>
   labs(x = "Month", y = "CO2 Concentration (ppm)",
        title = "Mona Loa CO2 Concentration 1975-2022 (Polynomial time trend model)")
 ```
-```{r polynomial time-trend model summary, echo = FALSE}
+
+```{r polynomial time-trend model summary, echo = FALSE, results='hide', warning=FALSE}
 polynomial_time_trend.model |>
 report()
 ```
 
-```{r polynomial time-trend model forecast, echo = FALSE}
+```{r polynomial time-trend model forecast, echo = FALSE, warning=FALSE, include=FALSE}
 poly.forecast <- polynomial_time_trend.model |>
   forecast(co2_monthly_present_gap_filled.test)
 
-poly.forecast  |>
+poly.plot <- poly.forecast  |>
   autoplot() +
   autolayer(co2_monthly_present_gap_filled.test) +
   geom_line(data=polynomial_time_trend.model |> augment() |>
   filter(year(Month) > 2020), aes(Month, .fitted)) +
-  labs(title = "Mona Loa CO2 Concentration Forecast (Polynomial time trend model)", x = "Month", y = "CO2 Concentration (ppm)")
+  labs(title = "Polynomial time trend model", x = "Month", y = "CO2 Concentration (ppm)")
 
 poly.accuracy <- accuracy(poly.forecast, co2_monthly_present_gap_filled.test)
 ```
+```{r echo = FALSE, warning=FALSE}
+SARIMA.plot / poly.plot
+```
+
 ```{r accuracy table, echo = FALSE}
 accuracy_table <- rbind(sarima.accuracy, poly.accuracy)
 accuracy_table
 ```
 
-From the above accuracy table, it is pretty evident that SARIMA model has outperformed polynomial time-trend model in terms of minimize the forecast error in the training dataset.
+From the above accuracy table, it is evident that SARIMA model has outperformed polynomial time-trend model in terms of minimize the forecast error in the training dataset. As a result, we have decided to use SARIMA model to forecast out fo 2122.
 
-#Forecast to 2122
+### *Forecast to 2122*
 
-```{r forecast out to year 2122, echo = FALSE}
+```{r forecast out to year 2122, echo = FALSE, warning=FALSE}
 forecase.size = (2122-2020)*12
 SARIMA.forecast.2122 <- SARIMA.model |>
   forecast(h=forecase.size) 
@@ -477,5 +483,4 @@ SARIMA.forecast.2122  |>
   labs(title = "Mona Loa CO2 Concentration Forecast (SARIMA model)", x = "Month", y = "CO2 Concentration (ppm)")
 
 ```
-
 We can see that using our SARIMA model the forecasts also have a trend and seasonal movement and fluctuations increase overtime. But these forecasts will get very inaccurate as we move beyond at best 5 year forecasts of the model, as the confidence intervals of the model prediction begin to open up very widely due to the inherent model restriction and the unpredictability of the future. We can be pretty confident to say that we will hit 420 ppm CO2 level in 2023-2025, less confident about 500 ppm CO2 level as the model suggest it can be as early as 2045 or as late as 2060 or beyond.
