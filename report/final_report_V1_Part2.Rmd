@@ -290,7 +290,7 @@ autoplot(model_ma.forecasts) +
 
 ## Point of View from the Present 
 
-Moving forward in this report, we will delve deeper into the evolution of atmospheric CO2 levels and draw comparisons between the patterns projected in the previous sections and those present in the current dataset. This analysis will leverage data sourced from the United States’ National Oceanic and Atmospheric Administration, collected at the Mauna Loa Observatory in Hawaii, consistent with our previous dataset. The data was compiled on a weekly basis, averaging CO2 values across days with valid data within each week. We retrieved the data by creating a data pipeline with the appropriate URL to the Global Monitoring Laboratory Website. Now we will examine the exploratory plots below to understand the data better. 
+Moving forward in this report, we will delve deeper into the evolution of atmospheric CO2 levels and draw comparisons between the patterns projected in the previous sections and those present in the current dataset. This analysis will leverage data sourced from the United States’ National Oceanic and Atmospheric Administration, collected at the Mauna Loa Observatory in Hawaii, consistent with our previous dataset. The data was compiled on a weekly basis, averaging CO2 values across days with valid data within each week. We retrieved the data by creating a data pipeline with the appropriate URL to the Global Monitoring Laboratory Website. Now we will examine the exploratory plots below to better understand the data.
 
 ```{r data pipeline, echo=FALSE}
 weekly_co2_url <- "https://gml.noaa.gov/webdata/ccgg/trends/co2/co2_weekly_mlo.csv"
@@ -380,15 +380,25 @@ present_data$predicted_linear <- predict(lm_model, newdata = present_data)
 present_data$predicted_quad <- predict(quad_model, newdata = present_data)
 present_data$predicted_seasonal <- predict(lm_seasonal_model, newdata = present_data)
 
+#present_data <- present_data %>%
+  #filter(year(Month) > 1997) %>%
+  #gather("Model", "CO2", c(predicted_linear, predicted_quad, predicted_seasonal, average))
+
 present_data <- present_data %>%
   filter(year(Month) > 1997) %>%
-  gather("Model", "CO2", c(predicted_linear, predicted_quad, predicted_seasonal, average))
+  gather("Model", "CO2", c(predicted_linear, predicted_quad, predicted_seasonal, average)) %>%
+  mutate(Model = case_when(
+    Model == "predicted_linear" ~ "Linear Model",
+    Model == "predicted_quad" ~ "Quadratic Model",
+    Model == "predicted_seasonal" ~ "Seasonal Polynomial Model",
+    TRUE ~ Model
+  ))
 
 line_comp <- ggplot(present_data, aes(x = Month, y = CO2, color = Model)) +
   geom_line() +
   labs(title = "Actual vs. Predicted Linear Models CO2 Levels", x = "Month", y = "CO2 Levels (ppm)") +
   theme_minimal()+
-  scale_color_brewer(palette = "Set1",labels = c("Actual Values", "Predicted Linear", "Predicted Quad", "Predicted Seasonal"))
+  scale_color_brewer(palette = "Set1",labels = c("Actual Values", "Linear Model", "Quadratic Model", "Seasonal Polynomial Model"))
 
 
 
@@ -409,9 +419,9 @@ forecasts_ar <- model_ar.bic %>% forecast(h = number_of_forecast_periods)
 forecasts_full <- model_full.bic %>% forecast(h = number_of_forecast_periods)
 
 forecast_data <- bind_rows(
-  as_tibble(forecasts_ma, .name_repair = "minimal") %>% mutate(Model = "ARIMA MA"),
-  as_tibble(forecasts_ar, .name_repair = "minimal") %>% mutate(Model = "ARIMA AR"),
-  as_tibble(forecasts_full, .name_repair = "minimal") %>% mutate(Model = "ARIMA Full")
+  as_tibble(forecasts_ma, .name_repair = "minimal") %>% mutate(Model = "SARIMA MA"),
+  as_tibble(forecasts_ar, .name_repair = "minimal") %>% mutate(Model = "SARIMA AR"),
+  as_tibble(forecasts_full, .name_repair = "minimal") %>% mutate(Model = "SARIMA Full")
 )
 
 
@@ -430,17 +440,17 @@ arima_comp <- ggplot(data = combined_data) +
   geom_line(aes(x = Month, y = .mean, colour = Model, linetype = Model)) +
   scale_color_manual(
     name = "Model",
-    values = c("Actual" = "red", "ARIMA AR" = "darkgreen", "ARIMA Full" = "blue", "ARIMA MA" = "pink"),
-    labels = c("Actual Values", "ARIMA AR", "ARIMA Full", "ARIMA MA")
+    values = c("Actual" = "red", "SARIMA AR" = "darkgreen", "SARIMA Full" = "blue", "SARIMA MA" = "pink"),
+    labels = c("Actual Values", "SARIMA AR", "SARIMA Full", "SARIMA MA")
   ) +
   scale_linetype_manual(
     name = "Model",
-    values = c("Actual" = "solid", "ARIMA AR" = "dotted", "ARIMA Full" = "dashed", "ARIMA MA" = "longdash"),
-    labels = c("Actual Values", "ARIMA AR", "ARIMA Full", "ARIMA MA")
+    values = c("Actual" = "solid", "SARIMA AR" = "dotted", "SARIMA Full" = "dashed", "SARIMA MA" = "longdash"),
+    labels = c("Actual Values", "SARIMA AR", "SARIMA Full", "SARIMA MA")
   ) +
   guides(colour = guide_legend(order = 1), linetype = guide_legend(order = 1)) +
   labs(
-    title = "Actual vs. Predicted ARIMA Models CO2 Levels",
+    title = "Actual vs. Predicted SARIMA Models CO2 Levels",
     x = "Month",
     y = "CO2 Levels"
   ) +
@@ -455,16 +465,9 @@ arima_comp <- ggplot(data = combined_data) +
 (line_comp | arima_comp)
 ```
 
-In the comparison of linear models, the forecast from the Predicted Seasonal model aligns closely with the actual CO2 values. The Predicted Linear model consistently underestimates the CO2 levels. The Predicted Quad model shows an improved fit in terms of the overall upward trend compared to the simple linear model, but it doesn't fully capture the periodic seasonal variations. Turning to the ARIMA models, forecasts from all variants—AR, MA, and Full—align closely with the actual CO2 values. 
+In the graph comparison of linear models, the forecast from the seasonal polynomial model aligns closely with the actual CO2 values. The simple linear model consistently underestimates the CO2 levels. The quadratic model shows an improved fit in terms of the overall upward trend compared to the simple linear model, but it doesn't fully capture the periodic seasonal variations. Turning to the SARIMA models, forecasts from all variants—AR, MA, and Full—align closely with the actual CO2 values. The Keeling Curve from 1997 to the present seems to have evolved pretty similarly to the historical curve.
 
-```{r best seasonal arima comp, echo=FALSE}
-#best seasonal arima = SARIMA(0,1,1)(0,1,1)_{12}
-subset_df <- co2_monthly_present[co2_monthly_present$average > 420, ]
-subset_df <- subset_df[1, ]
-print(subset_df)
-```
-
-In 1997, our forecasts estimated when atmospheric CO2 levels might first surpass the 420 ppm threshold. The best-performing model, a Seasonal ARIMA, suggested that this milestone would be reached in different years under various scenarios: May 2017 was projected as a high extreme case, May 2023 as the model's central prediction, and May 2036 as a low extreme case. Actual measurements indicate that this level was first crossed in April 2022, as shown by the data extracted from the Mauna Loa Observatory. This outcome demonstrates that the Seasonal ARIMA model provided a reasonable estimation, with the actual occurrence falling between the predicted central and high extreme case scenarios. 
+In 1997, our forecasts estimated when atmospheric CO2 levels might first surpass the 420 ppm threshold. The best-performing model, SARIMA MA, suggests that this milestone would be reached in different years under various scenarios: May 2017 was projected as a high extreme case, May 2023 as the model's central prediction, and May 2036 as a low extreme case. Actual measurements extracted from the Mauna Loa Observatory indicate that this level was first crossed in April 2022. This outcome demonstrates that the Seasonal ARIMA model provided a reasonable estimation, with the actual occurrence falling between the predicted central and high extreme case scenarios. 
 
 
 ```{r accuracy comp, echo=FALSE}
@@ -488,7 +491,7 @@ actual_values <- all_df %>%
 
 accuracy_list <- list()
 
-model_names <- c("predicted_linear", "predicted_quad", "predicted_seasonal", "ARIMA AR", "ARIMA MA", "ARIMA Full")
+model_names <- c("Linear Model", "Quadratic Model", "Seasonal Polynomial Model", "SARIMA AR", "SARIMA MA", "SARIMA Full")
 
 for(model_name in model_names) {
   predicted_values <- all_df %>% 
@@ -515,5 +518,5 @@ accuracy_df <- round(accuracy_df, 4)
 print(accuracy_df)
 ```
 
-Looking at the performance metrics of all three linear and arima models, we see that the predicted_linear model shows high errors across all metrics. In contrast, both the predicted_quad and predicted_seasonal models demonstrate lower error values, suggesting a more accurate representation of the data trends. The ARIMA models—ARIMA AR, ARIMA MA, and ARIMA Full—present moderate errors, with ARIMA MA and ARIMA Full yielding similar performance metrics. Among the models assessed, the predicted_seasonal model stands out with the lowest RMSE value at 0.5776, highlighting its accuracy in tracking the actual data points. Moreover, all models have ACF1 values below 1, pointing to a lack of strong autocorrelation in the residuals and suggesting that each model is capturing the seasonality in the data to some extent.
+Looking at the performance metrics of all three linear and SARIMA models, we see that the simple linear model shows high errors across all metrics. In contrast, both the quadratic and seasonal ploynomial models demonstrate lower error values, suggesting a more accurate representation of the data trends. The SARIMA models—SARIMA AR, SARIMA MA, and SARIMA Full—present moderate errors, with SARIMA MA and SARIMA Full yielding similar performance metrics. Among the models assessed, the seasonal polynomial model stands out with the lowest RMSE value at 0.5776, highlighting its accuracy in tracking the actual data points.
 
