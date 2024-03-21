@@ -1,7 +1,6 @@
 ---
-title: "CO2 Emissions 1997"
-author: "Team 2"
-date: "2024-03-18"
+title: "W271 Group Lab 2 Team 2"
+author: "Katt Painter, Bo He, Akanksha Chattopadhyay, Ian Vaimberg"
 output: 'pdf_document'  
 ---
 
@@ -15,7 +14,7 @@ library(lubridate)
 
 library(tsibble)
 library(feasts)
-#library(forecast)
+library(forecast)
 
 library(sandwich)
 library(lmtest)
@@ -54,6 +53,8 @@ In order to better understand the characteristics of this time series, we conduc
 
 - Discuss seasonal/trend decomposition 
 - What about growth rates?
+  - Some acceleration to the growth rates 
+  - Growth rate is mean reverting with given process 
 
 ```{r time series plot, echo=FALSE, fig.width = 10, fig.height = 3}
 time_series <- ggplot(data, aes(x=index, y=value)) +
@@ -62,33 +63,80 @@ time_series <- ggplot(data, aes(x=index, y=value)) +
   xlab("Time") +
   ggtitle("CO2 Concentration 1959 - 1997")
 
-# acf <- ggAcf(data$value, lag.max = 50) +
-#   ggtitle("ACF")
-# 
-# pacf <- ggPacf(data$value, lag.max = 50) +
-#   ggtitle("Partial ACF")
-# 
-# time_series + acf + pacf + plot_annotation(expression(italic('Figure 1. Time Series, ACF, and PACF')), theme=theme(plot.title=element_text(hjust=0.5)))
+acf <- ggAcf(data$value, lag.max = 50) +
+  ggtitle("ACF")
+
+pacf <- ggPacf(data$value, lag.max = 50) +
+  ggtitle("Partial ACF")
+
+time_series + acf + pacf + plot_annotation(expression(italic('Figure 1. Time Series, ACF, and PACF')), theme=theme(plot.title=element_text(hjust=0.5)))
 ```
 
 ## Models and Forecasts
 
-- Why modeling is important to aid understanding? 
-- Empirical evidence 
+While the exploratory analysis allows us to infer the underlying process of the time series, we cannot confirm this process without empirical modeling. In this section we will produce multiple models from the following classes, linear models and ARIMA models. Following the modeling and model evaluation, we will use the models to produce forecasts for what the CO2 concentration will be over the next 20 years. 
 
-### *Linear Model*
+### *Linear Models*
 
-```{r  linear model, echo = FALSE, results='hide'}
+Three linear models were considered, these models are describe by the following set of equations: 
+\begin{align}
+y_t=t+\epsilon_t
+\end{align}
+\begin{align}
+y_t=t+t^2+\epsilon_t
+\end{align}
+\begin{align}
+y_t=t+d_{2, t}+d_{3, t}+...+d_{11, t}+d_{12, t}+\epsilon_t
+\end{align}
+where $t$ is the time index (i.e., year-month) represented as an integer and $d$ is a dummy variable representing each month. For example $d_{2}$ would correspond to the month of February, $d_{3}$ would correspond to the month of March, and so on. 
+
+The following table reports the coefficients that produce the best fit for each of the previously defined models. It also reports several performance metrics such as R-squared, adjusted R-squared, F statistics, etc. The table suggests that each model explains a large amount of the variation in CO2 emissions with adjusted R-squared values ranging from 0.97 to 0.99. This indicates that these models appear to perform extremely well. The p-values associated with each predictor are also significant, indicating that each predictor increases the explanatory power of the model. However, in order to determine the appropriateness of using linear models to estimate CO2 concentrations we must examine the residuals of each model. 
+
+```{r  linear models, echo = FALSE, results='hide'}
 data$month_since_start <- as.numeric(index(data) - min(index(data))) + 1
 
 lm_model <- lm(value ~ month_since_start, data=data)
-summary(lm_model)
+
+quad_model <- lm(value ~ month_since_start + I(month_since_start^2), data=data)
+
+lm_seasonal_model <- lm(value ~ month_since_start  + I(month_since_start^2) + month, data=data)
 ```
-```{r  quadratic model, echo = FALSE, results='hide'}
-quad_model <- lm(value ~ I(month_since_start^2) , data=data)
-summary(quad_model)
+
+```{r stargazer linear models, results = "asis", fig.width = 10, fig.height = 3, echo=FALSE, fig.pos="H"}
+star <- stargazer(
+    lm_model, quad_model, lm_seasonal_model,
+    type = "latex",
+    title = "Estimated Linear Models",
+    dep.var.caption  = "Response: Atmospheric CO2 Concentration",
+    dep.var.labels   = "",
+    header=FALSE,
+    star.cutoffs = c(0.05, 0.01, 0.001),
+    digits=2,
+    no.space = TRUE, 
+    column.sep.width = "1pt", 
+    single.row = TRUE,
+    covariate.labels = c(
+        "Month Index",
+        "Month Index$^{2}$",
+        "Feb",
+        "March",
+        "April",
+        "May",
+        "June",
+        "July",
+        "Aug",
+        "Sep",
+        "Oct",
+        "Nov",
+        "Dec"
+    ),
+    font.size = "small"
+)
 ```
-```{r residual plots linear models, echo = FALSE}
+
+Figure 2 shows the standardized residuals against the fitted values for each linear model. There are clear patterns present in each of these plots. The first model shows a U-shaped curve that indicates the model is under predicting CO2 concentrations that are in the mid-range and over predicting CO2 concentrations closer to the edges. Whereas the quadratic model appears to oscillate in whether it is over or under predicting CO2 concentrations. The polynomial model appears to also have a U-shaped pattern. However, compared to the first model, its errors appear to be larger, especially at edge values. Nevertheless, the residuals appear to be homoskedastic for all three models which suggests that no transformation (i.e., logarthmic) is needed. Overall, these plots suggest that linear models are not appropriate for this particular data set. They do not appear to adequately capture the underlying time series process. So we must turn to ARIMA models.   
+
+```{r residual plots linear models, echo = FALSE, fig.width = 10, fig.height = 3}
 lm_residual_data <- data.frame(
   predicted_values = fitted(lm_model),
   residuals = rstandard(lm_model)
@@ -99,62 +147,60 @@ quad_residual_data <- data.frame(
   residuals = rstandard(quad_model)
 )
 
+poly_residual_data <- data.frame(
+  predicted_values = fitted(lm_seasonal_model),
+  residuals = rstandard(lm_seasonal_model)
+)
+
 lm_resid_plot <- ggplot(lm_residual_data, aes(x = predicted_values, y = residuals)) +
   geom_point() +
   geom_hline(yintercept = 0, linetype = "dashed", color = "red") +
-  geom_smooth(se = FALSE) +
-  labs(title = "Linear Model Standardized Residuals vs Fitted Values", 
-       x = "Fitted Values", y = "Standardized Residuals")
+  geom_smooth(se = FALSE, formula = y ~ x, method = "loess") +
+  labs(title = "Linear Model (1)", y = "Standardized Residuals", x = "Fitted Values")
 
 quad_resid_plot <- ggplot(quad_residual_data, aes(x = predicted_values, y = residuals)) +
   geom_point() +
   geom_hline(yintercept = 0, linetype = "dashed", color = "red") +
-  geom_smooth(se = FALSE) +
-  labs(title = "Quadratic Model Standardized Residuals vs Fitted Values", 
-       x = "Fitted Values", y = "Standardized Residuals")
+  geom_smooth(se = FALSE, formula = y ~ x, method = "loess") +
+  labs(title = "Quadratic Model (2)", y = "", x = "Fitted Values")
 
-lm_resid_plot / quad_resid_plot
+poly_resid_plot <- ggplot(poly_residual_data, aes(x = predicted_values, y = residuals)) +
+  geom_point() +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "red") +
+  geom_smooth(se = FALSE, formula = y ~ x, method = "loess") +
+  labs(title = "Polynomial Model (3)", 
+       x = "Fitted Values", y = "")
+
+(lm_resid_plot | quad_resid_plot | poly_resid_plot) + plot_annotation(expression(italic('Figure 2. Linear Model Evaluation')), theme=theme(plot.title=element_text(hjust=0.5)))
 ```
-```{r polynomial time trend model, echo = FALSE}
-lm_seasonal_model <- lm(value ~ month_since_start + month, data=data)
-summary(lm_seasonal_model)
-```
 
-- Functional form: y = t + e (co2 concentration = time index + error) &  y = t^2 + e
-- Results
-  - High R-squared values 
-  - Significant p-values 
-- Interpretation/evaluation? 
-  - U-shaped (and upside down U-shaped) patterns
-  - Suggest linear models are not appropriate for the data
-  - Linear model predicting too low middle values 
-  - Quadratic model predicting too high middle values 
+### *ARIMA Models*
 
-### *ARIMA Model*
+- Functional form 
+- Differencing required 
 
 ```{r ARIMA Modeling, echo = FALSE}
-model_ma.bic<-data %>%
-model(ARIMA(value ~ 1 + pdq(0,0:1,0:3) + PDQ(0,0:1,0:3), ic="bic", stepwise=F, greedy=F,
-            order_constraint = p + q + P + Q <= 10))
-
-model_ar.bic<-data %>%
-model(ARIMA(value ~ 1 + pdq(0:3,0:1,0) + PDQ(0:3,0:1,0), ic="bic", stepwise=F, greedy=F,
-            order_constraint = p + q + P + Q <= 10))
-
-model_full.bic<-data %>%
-model(ARIMA(value ~ 1 + pdq(0:3,0:1,0:3) + PDQ(0:3,0:1,0:3), ic="bic", stepwise=F, greedy=F,
-            order_constraint = p + q + P + Q <= 10))
-
-# Report model summaries 
-model_ma.bic %>% # Best BIC model to use for forecasting 
-report()
-
-model_ar.bic %>%
-report()
-
-model_full.bic %>%
-report()
-
+# model_ma.bic<-data %>%
+# model(ARIMA(value ~ 1 + pdq(0,0:1,0:3) + PDQ(0,0:1,0:3), ic="bic", stepwise=F, greedy=F,
+#             order_constraint = p + q + P + Q <= 10))
+# 
+# model_ar.bic<-data %>%
+# model(ARIMA(value ~ 1 + pdq(0:3,0:1,0) + PDQ(0:3,0:1,0), ic="bic", stepwise=F, greedy=F,
+#             order_constraint = p + q + P + Q <= 10))
+# 
+# model_full.bic<-data %>%
+# model(ARIMA(value ~ 1 + pdq(0:3,0:1,0:3) + PDQ(0:3,0:1,0:3), ic="bic", stepwise=F, greedy=F,
+#             order_constraint = p + q + P + Q <= 10))
+# 
+# # Report model summaries 
+# model_ma.bic %>% # Best BIC model to use for forecasting 
+# report()
+# 
+# model_ar.bic %>%
+# report()
+# 
+# model_full.bic %>%
+# report()
 ```
 
 - Functional form 
@@ -163,34 +209,33 @@ report()
 ### *Forecasts*
 
 ```{r polynomial forecasts, echo = FALSE, results = 'hide'}
-library(forecast)
-index <- seq(from = ymd("1998-01-01"), to = ymd("2020-12-01"), by = "1 month")
-
-ext_data <- data.frame(index = index) %>% 
-  as_tsibble(index=index) %>% 
-  mutate(month = as.factor(month(index))) 
-
-ext_data$month_since_start <- seq(max(data$month_since_start)+1,max(data$month_since_start)+(23*12))
-
-forecast <- data.frame(predict = predict(lm_seasonal_model, newdata = ext_data))
-
-forecast$index <- ext_data$index
-
-ggplot(forecast, aes(x=index, y=predict)) +
-  geom_line() +
-  ylab("CO2 Concentration") +
-  xlab("Year-Month") +
-  ggtitle("CO2 Concentration Forecast 1998 - 2020")
+# index <- seq(from = ymd("1998-01-01"), to = ymd("2020-12-01"), by = "1 month")
+# 
+# ext_data <- data.frame(index = index) %>% 
+#   as_tsibble(index=index) %>% 
+#   mutate(month = as.factor(month(index))) 
+# 
+# ext_data$month_since_start <- seq(max(data$month_since_start)+1,max(data$month_since_start)+(23*12))
+# 
+# forecast <- data.frame(predict = predict(lm_seasonal_model, newdata = ext_data))
+# 
+# forecast$index <- ext_data$index
+# 
+# ggplot(forecast, aes(x=index, y=predict)) +
+#   geom_line() +
+#   ylab("CO2 Concentration") +
+#   xlab("Year-Month") +
+#   ggtitle("CO2 Concentration Forecast 1998 - 2020")
 ```
 
 ```{r ARIMA forcast 2022, echo=FALSE}
-model_ma.forecasts<-forecast(model_ma.bic, h=25*12)
-
-autoplot(model_ma.forecasts) +
-  autolayer(data, colour = "black", .vars = value) +
-  xlab("Year") +
-  ylab("Value") +
-  ggtitle("ARIMA Forecast for Next 25 Years")
+# model_ma.forecasts<-forecast(model_ma.bic, h=25*12)
+# 
+# autoplot(model_ma.forecasts) +
+#   autolayer(data, colour = "black", .vars = value) +
+#   xlab("Year") +
+#   ylab("Value") +
+#   ggtitle("ARIMA Forecast for Next 25 Years")
 ```
 
 - Forecasts 
