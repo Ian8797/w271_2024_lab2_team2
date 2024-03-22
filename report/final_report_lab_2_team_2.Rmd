@@ -207,7 +207,7 @@ poly_resid_plot <- ggplot(poly_residual_data, aes(x = predicted_values, y = resi
   geom_point() +
   geom_hline(yintercept = 0, linetype = "dashed", color = "red") +
   geom_smooth(se = FALSE, formula = y ~ x, method = "loess") +
-  labs(title = "Polynomial Model (3)", 
+  labs(title = "Seasonal Polynomial Model (3)", 
        x = "Fitted Values", y = "")
 
 (lm_resid_plot | quad_resid_plot | poly_resid_plot) + plot_annotation(expression(italic('Figure 3. Linear Model Evaluation')), theme=theme(plot.title=element_text(hjust=0.5)))
@@ -532,7 +532,7 @@ co2_present <- co2_present %>%
 ```
 
 
-```{r EDA PART 2,fig.width = 6, fig.height = 4, echo=FALSE, warning=FALSE, message=FALSE}
+```{r EDA PART 2,fig.width = 6, fig.height = 3, echo=FALSE, warning=FALSE, message=FALSE, fig.align='center'}
 # Distribution 
 dist <- ggplot(co2_present, aes(x = average)) +
   geom_histogram() + 
@@ -672,7 +672,7 @@ arima_comp <- ggplot(data = combined_data) +
 
 In the graph comparison of linear models, the forecast from the seasonal polynomial model aligns closely with the actual CO2 values. The simple linear model consistently underestimates the CO2 levels. The quadratic model shows an improved fit in terms of the overall upward trend compared to the simple linear model, but it doesn't fully capture the periodic seasonal variations. Turning to the SARIMA models, forecasts from all variants—AR, MA, and Full—align closely with the actual CO2 values. The Keeling Curve from 1997 to the present seems to have evolved pretty similarly to the historical curve.
 
-In 1997, our forecasts estimated when atmospheric CO2 levels might first surpass the 420 ppm threshold. The best-performing model, SARIMA MA, suggests that this milestone would be reached in different years under various scenarios: May 2017 was projected as a high extreme case, May 2023 as the model's central prediction, and May 2036 as a low extreme case. Actual measurements extracted from the Mauna Loa Observatory indicate that this level was first crossed in April 2022. This outcome demonstrates that the Seasonal ARIMA model provided a reasonable estimation, with the actual occurrence falling between the predicted central and high extreme case scenarios. 
+In 1997, our forecasts estimated when atmospheric CO2 levels might first surpass the 420 ppm threshold. The best-performing model, $SARIMA(0,1,1)(0,1,1)_{12}$, suggests that this milestone would be reached in different years under various scenarios: May 2017 was projected as a high extreme case, May 2023 as the model's central prediction, and May 2036 as a low extreme case. Actual measurements extracted from the Mauna Loa Observatory indicate that this level was first crossed in April 2022. This outcome demonstrates that the Seasonal ARIMA model provided a reasonable estimation, with the actual occurrence falling between the predicted central and high extreme case scenarios. 
 
 ```{r accuracy comp, echo=FALSE}
 subset_cd <- combined_data[c("Month", "average", "Model",".mean")]
@@ -718,7 +718,7 @@ accuracy_df <- do.call(rbind, lapply(accuracy_list, function(x) {
 accuracy_df <- accuracy_df[c("ME", "RMSE", "MAE", "MPE", "MAPE", "ACF1")]
 accuracy_df <- round(accuracy_df, 4)
 
-print(accuracy_df)
+accuracy_df
 ```
 
 Looking at the performance metrics of all three linear and SARIMA models, we see that the simple linear model shows high errors across all metrics. In contrast, both the quadratic and seasonal ploynomial models demonstrate lower error values, suggesting a more accurate representation of the data trends. The SARIMA models—SARIMA AR, SARIMA MA, and SARIMA Full—present moderate errors, with SARIMA MA and SARIMA Full yielding similar performance metrics. Among the models assessed, the seasonal polynomial model stands out with the lowest RMSE value at 0.5776, highlighting its accuracy in tracking the actual data points.
@@ -748,7 +748,7 @@ seasonal.plot
 
 As we have observed in our EDA section and observations from 1997 report, we believe the CO2 levels have both overall upward trend and very possible seasonal trend. We used STL decomposition to decompose the data into 3 components: 1) upward trend using 6 months window, 2) seasonal trend which is observed as yearly trend, and 3) remainder, which the mean is observed close to zero, and fluctuates around reasonably bounded variance. We will proceed with further investigation to check for stationary on the remainder.
 
-```{r Task 5b STL, echo = FALSE, warning=FALSE}
+```{r Task 5b STL, echo = FALSE, warning=FALSE, fig.width = 6, fig.height = 3, fig.align='center'}
 STL.model <- co2_monthly_present_gap_filled |>
   model(
     STL(average ~ trend(window = 6) + season(window = "periodic"),
@@ -818,13 +818,13 @@ SARIMA.model |>
 
 ### *SARIMA Model*
 
-```{r SARIMA model selection 2, warning=FALSE, echo = FALSE}
+```{r SARIMA model selection 2, warning=FALSE, echo = FALSE, fig.width = 6, fig.height = 4, fig.align='center'}
 SARIMA.model |>
   gg_tsresiduals() +
   labs(title = "SARIMA model residuals")
 ```
 
-The residuals of SARIMA model appear to be close to white noise. There is no significant lags, but with some seasonal pattern that suggests we should run a statistical test on the residuals from the models to see if they are randomly distributed i.e. are white noise, which is what we want for a good model fit, or if they appear to have some serial correlation over time and violate the assumptions for a stationary time series fit. The Box-Ljung test result p-value of 0.53 > 0.05 confirmed that the residuals of the SARIMA model are stationary and appeared to be white noise. And we performed the similar steps and test on Polynomial model confirmed the same, so we decided to use both models for forecasting and accuracy comparison.
+The residuals of the $SARIMA(0,1,1)(2,1,2)_{12}$ model appear to be close to white noise. There is no significant lags, but with some seasonal pattern that suggests we should run a statistical test on the residuals from the models to see if they are randomly distributed i.e. are white noise, which is what we want for a good model fit, or if they appear to have some serial correlation over time and violate the assumptions for a stationary time series fit. The Box-Ljung test result p-value of 0.53 > 0.05 confirmed that the residuals of the SARIMA model are stationary and appeared to be white noise. And we performed the similar steps and test on Polynomial model confirmed the same, so we decided to use both models for forecasting and accuracy comparison.
 
 ```{r SARIMA Box Ljung test, echo = FALSE,  warning=FALSE, include=FALSE}
 models |>
@@ -847,7 +847,6 @@ SARIMA.plot <- SARIMA.forecast  |>
   labs(title = "SARIMA model", x = "Month", y = "CO2 Concentration (ppm)")
 
 sarima.accuracy <- accuracy(SARIMA.forecast, co2_monthly_present_gap_filled.test)
-
 ```
 
 ```{r polynomial time-trend model, echo = FALSE, fig.show='hide, warning=FALSE', include=FALSE}
@@ -881,6 +880,7 @@ poly.plot <- poly.forecast  |>
 
 poly.accuracy <- accuracy(poly.forecast, co2_monthly_present_gap_filled.test)
 ```
+
 ```{r echo = FALSE, warning=FALSE}
 SARIMA.plot / poly.plot
 ```
@@ -894,7 +894,7 @@ From the above accuracy table, it is evident that SARIMA model has outperformed 
 
 ### *Forecast to 2122*
 
-```{r forecast out to year 2122, echo = FALSE, warning=FALSE}
+```{r forecast out to year 2122, echo = FALSE, warning=FALSE, fig.width = 6, fig.height = 3, fig.align='center'}
 forecase.size = (2122-2020)*12
 SARIMA.forecast.2122 <- SARIMA.model |>
   forecast(h=forecase.size) 
